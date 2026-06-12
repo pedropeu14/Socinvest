@@ -6,6 +6,7 @@ on:
     paths:
       - "OB_OS.xlsx"
       - "p_e.xlsx"
+      - "Catalogo_de_ETFs.xlsx"
       - "index.html"
       - "build.py"
   workflow_dispatch:
@@ -36,13 +37,14 @@ jobs:
         run: pip install openpyxl
 
       - name: Gerar data.json a partir do Excel
-        run: python build.py OB_OS.xlsx p_e.xlsx
+        run: python build.py OB_OS.xlsx p_e.xlsx Catalogo_de_ETFs.xlsx
 
       - name: Montar pasta do site
         run: |
           mkdir -p _site
           cp index.html data.json _site/
           cp pe.json _site/ 2>/dev/null || true
+          cp catalogo.json _site/ 2>/dev/null || true
 
       - uses: actions/upload-pages-artifact@v3
         with:
