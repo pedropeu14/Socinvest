@@ -205,17 +205,29 @@ function windowedRobust(d){
   w.p98 = pct(0.98);
   return w;
 }
-const xTicks = { autoSkip:false, maxRotation:0, font:{family:'Georgia', size:11}, callback:function(v,i){
-  const labels=this.chart.data.labels;
-  const nYears=new Set(labels.map(l=>l.slice(0,4))).size;
-  if(nYears<=2){
-    const m=labels[i].slice(0,7);
-    if(i>0 && labels[i-1].slice(0,7)===m) return null;
-    return (+labels[i].slice(5,7))%3===1 ? m : null;
+const xTicks = { autoSkip:false, maxRotation:90, font:{family:'Georgia', size:11}, callback:function(v,i){
+  const c=this.chart, labels=c.data.labels;
+  // cache: posições do primeiro dia de cada ano/mês
+  if(!c._axCache || c._axCache.n!==labels.length){
+    const years=[], months=[];
+    labels.forEach((l,j)=>{
+      if(j===0 || labels[j-1].slice(0,4)!==l.slice(0,4)) years.push(j);
+      if(j===0 || labels[j-1].slice(0,7)!==l.slice(0,7)) months.push(j);
+    });
+    c._axCache = {n:labels.length, years, months};
   }
-  const yr=labels[i].slice(0,4);
-  if(i>0 && labels[i-1].slice(0,4)===yr) return null;
-  return yr;
+  const {years, months} = c._axCache;
+  const maxLabels = Math.max(6, Math.floor((c.width||600)/16)); // rótulos podem girar para vertical, então cabem mais
+  if(years.length<=2){
+    const k = months.indexOf(i);
+    if(k<0) return null;
+    const step = Math.ceil(months.length/maxLabels);
+    return k%step===0 ? labels[i].slice(0,7) : null;
+  }
+  const k = years.indexOf(i);
+  if(k<0) return null;
+  const step = Math.ceil(years.length/maxLabels);
+  return k%step===0 ? labels[i].slice(0,4) : null;
 }};
 
 function lineConfig(title, dates, vals, mean, sd, yFmt, tooltipFmt, meanLabel='Média', yMax=null){
