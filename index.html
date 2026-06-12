@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Distância da Média Móvel de 200 Dias — Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f7f6f3; --card:#ffffff; --ink:#1a1a1a; --muted:#6b6b6b;
+    --line:#1f4e79; --mean:#444444; --band:#b30000; --accent:#1f4e79;
+    --border:#e3e0da; --green:#1a7a3c; --red:#b30000;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:Georgia,'Times New Roman',serif; background:var(--bg); color:var(--ink); line-height:1.5;}
+  header{max-width:1100px; margin:0 auto; padding:36px 24px 12px;}
+  h1{font-size:26px; font-weight:normal; letter-spacing:.3px;}
+  .subtitle{color:var(--muted); font-size:14px; margin-top:6px; font-style:italic;}
+  .rule{border-top:2px solid var(--ink); max-width:1100px; margin:14px auto 0;}
+  main{max-width:1100px; margin:0 auto; padding:20px 24px 60px;}
+  .controls{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:14px 0 18px;}
+  select,button.tab{font-family:inherit; font-size:14px; padding:7px 12px; border:1px solid var(--border); background:var(--card); cursor:pointer; border-radius:3px;}
+  button.tab.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:4px; padding:18px 20px; margin-bottom:22px;}
+  .chart-wrap{position:relative; height:420px;}
+  .stats{display:flex; flex-wrap:wrap; gap:26px; font-size:13.5px; margin-top:12px; color:var(--muted);}
+  .stats b{color:var(--ink); font-size:15px;}
+  table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  th{text-align:left; border-bottom:2px solid var(--ink); padding:8px 10px; font-weight:600; cursor:pointer; user-select:none; white-space:nowrap;}
+  td{padding:7px 10px; border-bottom:1px solid var(--border);}
+  tr:hover td{background:#faf9f6; cursor:pointer;}
+  .pos{color:var(--red); font-weight:600;}
+  .neg{color:var(--green); font-weight:600;}
+  .zbar{display:inline-block; height:9px; border-radius:2px; vertical-align:middle;}
+  footer{max-width:1100px; margin:0 auto; padding:0 24px 40px; color:var(--muted); font-size:12px; font-style:italic;}
+  .note{font-size:12.5px; color:var(--muted); margin-top:10px;}
+  @media (max-width:640px){ .chart-wrap{height:320px;} h1{font-size:21px;} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Distância da Média Móvel de 200 Dias</h1>
+  <div class="subtitle">Preço ÷ MM200d · linhas tracejadas: média histórica e ±1 desvio-padrão · dados Bloomberg</div>
+</header>
+<div class="rule"></div>
+<main>
+  <div class="controls">
+    <button class="tab active" id="tabChart">Gráfico</button>
+    <button class="tab" id="tabTable">Visão Geral (Z-Score)</button>
+    <select id="tickerSel"></select>
+    <select id="rangeSel">
+      <option value="all">Histórico completo</option>
+      <option value="10">10 anos</option>
+      <option value="5">5 anos</option>
+      <option value="3">3 anos</option>
+      <option value="1">1 ano</option>
+    </select>
+  </div>
+
+  <div class="card" id="chartCard">
+    <div class="chart-wrap"><canvas id="chart"></canvas></div>
+    <div class="stats" id="statsRow"></div>
+    <div class="note">Acima de +1σ: esticado vs. tendência (sobrecomprado) · Abaixo de −1σ: deprimido vs. tendência (sobrevendido). Média e σ calculados sobre o período exibido.</div>
+  </div>
+
+  <div class="card" id="tableCard" style="display:none">
+    <table id="ovTable">
+      <thead><tr>
+        <th data-k="ticker">Ativo</th>
+        <th data-k="last">Preço/MM200</th>
+        <th data-k="dist">Distância</th>
+        <th data-k="z">Z-Score ▼</th>
+        <th>Posição</th>
+        <th data-k="n">Obs.</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="note">Z-Score = (ratio atual − média histórica) ÷ desvio-padrão histórico. Clique numa linha para abrir o gráfico.</div>
+  </div>
+</main>
+<footer>Fonte: Bloomberg (MOV_AVG_200D, PX_LAST). Última observação: <span id="lastDate">—</span>. Documento de pesquisa — não constitui recomendação de investimento.</footer>
+
+<script>
+let DATA = {};
+
+fetch('data.json').then(r=>r.json()).then(d=>{
+DATA = d;
+document.getElementById('lastDate').textContent = Object.values(DATA).map(x=>x.lastDate).sort().pop();
+const sel = document.getElementById('tickerSel');
+const rangeSel = document.getElementById('rangeSel');
+const keys = Object.keys(DATA).sort((a,b)=>DATA[a].ticker.localeCompare(DATA[b].ticker));
+keys.forEach(k=>{
+  const o=document.createElement('option'); o.value=k; o.textContent=DATA[k].ticker; sel.appendChild(o);
+});
+
+let chart;
+function fmtPct(x){ return (x>=0?'+':'')+(x*100).toFixed(1)+'%'; }
+
+function render(key){
+  const d = DATA[key];
+  let dates = d.dates, ratio = d.ratio;
+  const yrs = rangeSel.value;
+  if(yrs!=='all'){
+    const cutoff = new Date(d.lastDate); cutoff.setFullYear(cutoff.getFullYear()-(+yrs));
+    const c = cutoff.toISOString().slice(0,10);
+    const i0 = dates.findIndex(x=>x>=c);
+    if(i0>0){ dates=dates.slice(i0); ratio=ratio.slice(i0); }
+  }
+  const mean = ratio.reduce((a,b)=>a+b,0)/ratio.length;
+  const sd = Math.sqrt(ratio.reduce((a,b)=>a+(b-mean)**2,0)/ratio.length);
+  const up = mean+sd, dn = mean-sd;
+  const last = ratio[ratio.length-1];
+  const z = sd>0 ? (last-mean)/sd : 0;
+
+  const css = getComputedStyle(document.documentElement);
+  if(chart) chart.destroy();
+  chart = new Chart(document.getElementById('chart'), {
+    type:'line',
+    data:{ labels:dates, datasets:[
+      { label:'Preço / MM200d', data:ratio, borderColor:css.getPropertyValue('--line'), borderWidth:1.4, pointRadius:0, tension:0 },
+      { label:'Média', data:dates.map(()=>mean), borderColor:css.getPropertyValue('--mean'), borderWidth:1.2, borderDash:[6,4], pointRadius:0 },
+      { label:'+1σ', data:dates.map(()=>up), borderColor:css.getPropertyValue('--band'), borderWidth:1, borderDash:[4,4], pointRadius:0 },
+      { label:'−1σ', data:dates.map(()=>dn), borderColor:css.getPropertyValue('--band'), borderWidth:1, borderDash:[4,4], pointRadius:0 }
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:false,
+      interaction:{mode:'index', intersect:false},
+      plugins:{
+        legend:{labels:{font:{family:'Georgia'}, boxWidth:18, usePointStyle:false}},
+        title:{display:true, text:d.ticker+' — Preço relativo à MM de 200 dias', font:{family:'Georgia', size:15, weight:'normal'}, color:'#1a1a1a', padding:{bottom:10}},
+        tooltip:{callbacks:{label:(c)=>c.dataset.label+': '+c.parsed.y.toFixed(3)+'  ('+fmtPct(c.parsed.y-1)+' vs MM200)'}}
+      },
+      scales:{
+        x:{ ticks:{maxTicksLimit:10, font:{family:'Georgia', size:11}, callback:function(v){const s=this.getLabelForValue(v);return s.slice(0,7);}}, grid:{display:false} },
+        y:{ ticks:{font:{family:'Georgia', size:11}, callback:v=>v.toFixed(2)}, grid:{color:'#eeece7'} }
+      }
+    }
+  });
+
+  document.getElementById('statsRow').innerHTML =
+    '<span>Último: <b>'+last.toFixed(3)+'</b> ('+fmtPct(last-1)+' vs MM200)</span>'+
+    '<span>Média: <b>'+mean.toFixed(3)+'</b></span>'+
+    '<span>±1σ: <b>'+dn.toFixed(3)+' / '+up.toFixed(3)+'</b></span>'+
+    '<span>Z-Score: <b>'+z.toFixed(2)+'</b></span>'+
+    '<span>Período: <b>'+dates[0].slice(0,10)+' → '+dates[dates.length-1].slice(0,10)+'</b></span>';
+}
+
+function buildTable(sortKey='z', asc=false){
+  const rows = keys.map(k=>{
+    const d=DATA[k];
+    return { key:k, ticker:d.ticker, last:d.last, dist:d.last-1, z:d.sd>0?(d.last-d.mean)/d.sd:0, n:d.n };
+  });
+  rows.sort((a,b)=> (asc?1:-1) * ((a[sortKey]>b[sortKey])-(a[sortKey]<b[sortKey])) );
+  const maxZ = Math.max(...rows.map(r=>Math.abs(r.z)),1e-9);
+  const tb = document.querySelector('#ovTable tbody');
+  tb.innerHTML = rows.map(r=>{
+    const cls = r.z>=0?'pos':'neg';
+    const w = Math.abs(r.z)/maxZ*90;
+    const col = r.z>=0?'var(--red)':'var(--green)';
+    const pos = r.z>1 ? 'Acima de +1σ' : (r.z<-1 ? 'Abaixo de −1σ' : 'Dentro da banda');
+    return '<tr data-k="'+r.key+'"><td>'+r.ticker+'</td><td>'+r.last.toFixed(3)+'</td>'+
+      '<td class="'+cls+'">'+fmtPct(r.dist)+'</td>'+
+      '<td class="'+cls+'">'+r.z.toFixed(2)+' <span class="zbar" style="width:'+w+'px;background:'+col+'"></span></td>'+
+      '<td>'+pos+'</td><td>'+r.n.toLocaleString('pt-BR')+'</td></tr>';
+  }).join('');
+  tb.querySelectorAll('tr').forEach(tr=>tr.addEventListener('click',()=>{
+    sel.value = tr.dataset.k; showChart(); render(tr.dataset.k);
+  }));
+}
+
+let sortState = {k:'z', asc:false};
+document.querySelectorAll('#ovTable th[data-k]').forEach(th=>{
+  th.addEventListener('click',()=>{
+    const k=th.dataset.k;
+    sortState.asc = sortState.k===k ? !sortState.asc : false;
+    sortState.k=k; buildTable(k, sortState.asc);
+  });
+});
+
+const tabChart=document.getElementById('tabChart'), tabTable=document.getElementById('tabTable');
+function showChart(){ tabChart.classList.add('active'); tabTable.classList.remove('active');
+  document.getElementById('chartCard').style.display=''; document.getElementById('tableCard').style.display='none'; }
+function showTable(){ tabTable.classList.add('active'); tabChart.classList.remove('active');
+  document.getElementById('tableCard').style.display=''; document.getElementById('chartCard').style.display='none'; }
+tabChart.addEventListener('click', showChart);
+tabTable.addEventListener('click', showTable);
+
+sel.addEventListener('change', ()=>render(sel.value));
+rangeSel.addEventListener('change', ()=>render(sel.value));
+
+sel.value = keys.find(k=>DATA[k].ticker.startsWith('SPX')) || keys[0];
+buildTable();
+render(sel.value);
+});
+</script>
+</body>
+</html>
