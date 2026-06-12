@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Distância da Média Móvel de 200 Dias — Monitor</title>
+<title>Socinvest — Distância da Média Móvel de 200 Dias</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root{
@@ -39,6 +39,7 @@
 </head>
 <body>
 <header>
+  <div style="font-size:13px; letter-spacing:2.5px; text-transform:uppercase; color:var(--accent); font-weight:bold; margin-bottom:8px;">Socinvest</div>
   <h1>Distância da Média Móvel de 200 Dias</h1>
   <div class="subtitle">Preço ÷ MM200d · linhas tracejadas: média histórica e ±1 desvio-padrão · dados Bloomberg</div>
 </header>
@@ -131,7 +132,18 @@ function render(key){
         tooltip:{callbacks:{label:(c)=>c.dataset.label+': '+c.parsed.y.toFixed(3)+'  ('+fmtPct(c.parsed.y-1)+' vs MM200)'}}
       },
       scales:{
-        x:{ ticks:{maxTicksLimit:10, font:{family:'Georgia', size:11}, callback:function(v){const s=this.getLabelForValue(v);return s.slice(0,7);}}, grid:{display:false} },
+        x:{ ticks:{autoSkip:false, maxRotation:0, font:{family:'Georgia', size:11}, callback:function(v,i){
+              const labels=this.chart.data.labels;
+              const nYears=new Set(labels.map(l=>l.slice(0,4))).size;
+              if(nYears<=2){
+                const m=labels[i].slice(0,7);
+                if(i>0 && labels[i-1].slice(0,7)===m) return null;
+                return (+labels[i].slice(5,7))%3===1 ? m : null;
+              }
+              const yr=labels[i].slice(0,4);
+              if(i>0 && labels[i-1].slice(0,4)===yr) return null;
+              return yr;
+            }}, grid:{display:false} },
         y:{ ticks:{font:{family:'Georgia', size:11}, callback:v=>v.toFixed(2)}, grid:{color:'#eeece7'} }
       }
     }
