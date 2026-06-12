@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Socinvest — Distância da Média Móvel de 200 Dias</title>
+<title>Socinvest — Monitor Técnico & Valuation</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root{
@@ -14,15 +14,17 @@
   *{box-sizing:border-box; margin:0; padding:0;}
   body{font-family:Georgia,'Times New Roman',serif; background:var(--bg); color:var(--ink); line-height:1.5;}
   header{max-width:1100px; margin:0 auto; padding:36px 24px 12px;}
+  .brand{font-size:13px; letter-spacing:2.5px; text-transform:uppercase; color:var(--accent); font-weight:bold; margin-bottom:8px;}
   h1{font-size:26px; font-weight:normal; letter-spacing:.3px;}
   .subtitle{color:var(--muted); font-size:14px; margin-top:6px; font-style:italic;}
   .rule{border-top:2px solid var(--ink); max-width:1100px; margin:14px auto 0;}
-  main{max-width:1100px; margin:0 auto; padding:20px 24px 60px;}
+  main{max-width:1100px; margin:0 auto; padding:20px 24px 40px;}
   .controls{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:14px 0 18px;}
   select,button.tab{font-family:inherit; font-size:14px; padding:7px 12px; border:1px solid var(--border); background:var(--card); cursor:pointer; border-radius:3px;}
   button.tab.active{background:var(--accent); color:#fff; border-color:var(--accent);}
   .card{background:var(--card); border:1px solid var(--border); border-radius:4px; padding:18px 20px; margin-bottom:22px;}
   .chart-wrap{position:relative; height:420px;}
+  .chart-wrap.tall{height:520px;}
   .stats{display:flex; flex-wrap:wrap; gap:26px; font-size:13.5px; margin-top:12px; color:var(--muted);}
   .stats b{color:var(--ink); font-size:15px;}
   table{width:100%; border-collapse:collapse; font-size:13.5px;}
@@ -34,21 +36,30 @@
   .zbar{display:inline-block; height:9px; border-radius:2px; vertical-align:middle;}
   footer{max-width:1100px; margin:0 auto; padding:0 24px 40px; color:var(--muted); font-size:12px; font-style:italic;}
   .note{font-size:12.5px; color:var(--muted); margin-top:10px;}
-  @media (max-width:640px){ .chart-wrap{height:320px;} h1{font-size:21px;} }
+  .shortHist{color:#9a6700; font-size:11px;}
+  details.method{max-width:1100px; margin:0 auto 26px; padding:0 24px;}
+  details.method summary{cursor:pointer; font-size:14px; color:var(--accent); font-weight:600; padding:8px 0;}
+  details.method .inner{background:var(--card); border:1px solid var(--border); border-radius:4px; padding:18px 22px; font-size:14px;}
+  details.method .inner p{margin-bottom:10px;}
+  details.method .inner b{font-size:14px;}
+  @media (max-width:640px){ .chart-wrap{height:320px;} .chart-wrap.tall{height:420px;} h1{font-size:21px;} }
 </style>
 </head>
 <body>
 <header>
-  <div style="font-size:13px; letter-spacing:2.5px; text-transform:uppercase; color:var(--accent); font-weight:bold; margin-bottom:8px;">Socinvest</div>
-  <h1>Distância da Média Móvel de 200 Dias</h1>
-  <div class="subtitle">Preço ÷ MM200d · linhas tracejadas: média histórica e ±1 desvio-padrão · dados Bloomberg</div>
+  <div class="brand">Socinvest</div>
+  <h1>Monitor Técnico &amp; Valuation</h1>
+  <div class="subtitle">Distância da MM de 200 dias e P/E projetado vs. histórico · linhas tracejadas: média e ±1σ · dados Bloomberg</div>
 </header>
 <div class="rule"></div>
 <main>
   <div class="controls">
-    <button class="tab active" id="tabChart">Gráfico</button>
-    <button class="tab" id="tabTable">Visão Geral (Z-Score)</button>
+    <button class="tab active" data-view="chart">Técnico (MM200)</button>
+    <button class="tab" data-view="table">Z-Scores (MM200)</button>
+    <button class="tab" data-view="pe" id="tabPe" style="display:none">Valuation (P/E)</button>
+    <button class="tab" data-view="quad" id="tabQuad" style="display:none">Quadrantes</button>
     <select id="tickerSel"></select>
+    <select id="peSel" style="display:none"></select>
     <select id="rangeSel">
       <option value="all">Histórico completo</option>
       <option value="10">10 anos</option>
@@ -58,13 +69,13 @@
     </select>
   </div>
 
-  <div class="card" id="chartCard">
+  <div class="card view" id="view-chart">
     <div class="chart-wrap"><canvas id="chart"></canvas></div>
     <div class="stats" id="statsRow"></div>
     <div class="note">Acima de +1σ: esticado vs. tendência (sobrecomprado) · Abaixo de −1σ: deprimido vs. tendência (sobrevendido). Média e σ calculados sobre o período exibido.</div>
   </div>
 
-  <div class="card" id="tableCard" style="display:none">
+  <div class="card view" id="view-table" style="display:none">
     <table id="ovTable">
       <thead><tr>
         <th data-k="ticker">Ativo</th>
@@ -78,86 +89,226 @@
     </table>
     <div class="note">Z-Score = (ratio atual − média histórica) ÷ desvio-padrão histórico. Clique numa linha para abrir o gráfico.</div>
   </div>
+
+  <div class="card view" id="view-pe" style="display:none">
+    <div class="chart-wrap"><canvas id="peChart"></canvas></div>
+    <div class="stats" id="peStatsRow"></div>
+    <div class="note">P/E trailing (12m) contra sua mediana histórica e ±1σ robusto (percentis 16/84), calculados sobre o período exibido. P/E indisponível quando o lucro é negativo. <span class="shortHist">⚠ histórico curto: bandas pouco confiáveis.</span></div>
+  </div>
+
+  <div class="card view" id="view-quad" style="display:none">
+    <div class="chart-wrap tall"><canvas id="quadChart"></canvas></div>
+    <div class="note">Eixo X: Z-Score de valuation (P/E vs. média histórica) · Eixo Y: Z-Score técnico (preço vs. MM200). Calculados sobre o histórico completo de cada ativo. Apenas ativos presentes nos dois conjuntos de dados. Ativos com histórico de P/E curto marcados com ⚠.</div>
+  </div>
 </main>
-<footer>Fonte: Bloomberg (MOV_AVG_200D, PX_LAST). Última observação: <span id="lastDate">—</span>. Documento de pesquisa — não constitui recomendação de investimento.</footer>
+
+<details class="method">
+  <summary>Metodologia — o que estes indicadores medem</summary>
+  <div class="inner">
+    <p><b>Distância da MM200.</b> Para cada dia, dividimos o preço de fechamento pela média móvel de 200 dias. Um valor de 1,00 significa preço sobre a média; 1,10, preço 10% acima; 0,90, 10% abaixo. Diferentemente do preço, o ratio é estacionário e comparável ao longo do tempo. As linhas tracejadas marcam a média histórica do ratio e ±1 desvio-padrão — uma régua estatística do que é "normal" para cada ativo: papéis voláteis têm bandas largas, defensivos têm bandas estreitas. A comparação relevante é sempre do ativo com o próprio histórico.</p>
+    <p><b>Valuation (P/E).</b> O P/E trailing (lucro dos últimos 12 meses) é plotado contra seu nível histórico. Como o trailing P/E dispara quando o lucro colapsa para perto de zero (ciclos de memória, energia em 2020, growth pré-lucratividade), usamos estatística robusta: a linha central é a <i>mediana</i> histórica e as bandas usam os percentis 16/84 — equivalentes a ±1σ numa distribuição normal, mas imunes aos picos extremos. A leitura é análoga: acima de +1σ, múltiplo historicamente elevado; abaixo de −1σ, historicamente descontado. Atenção: o P/E fica indisponível quando o lucro é negativo, então o histórico de algumas empresas começa apenas no primeiro ano lucrativo.</p>
+    <p><b>Quadrantes.</b> O cruzamento dos dois Z-Scores separa o que move o preço: um ativo esticado no técnico mas com múltiplo normal subiu por lucros, não por re-rating; esticado nos dois eixos combina momentum com valuation cheio (cautela máxima); deprimido nos dois historicamente concentrou oportunidades — e os maiores estresses.</p>
+    <p><b>Limitações.</b> Os indicadores medem posição relativa ao próprio histórico, não valor intrínseco. Ativos podem permanecer fora das bandas por meses em regimes de momentum forte, e a reversão à média não tem prazo nem garantia. Ao mudar a janela de tempo, médias e bandas se recalibram. Ferramenta de contexto dentro de um processo de decisão — não sinal isolado de compra ou venda.</p>
+  </div>
+</details>
+
+<footer>Fonte: Bloomberg (MOV_AVG_200D, PX_LAST, PE_RATIO). Última observação: <span id="lastDate">—</span>. Documento de pesquisa — não constitui recomendação de investimento.</footer>
 
 <script>
-let DATA = {};
-
-fetch('data.json').then(r=>r.json()).then(d=>{
-DATA = d;
-document.getElementById('lastDate').textContent = Object.values(DATA).map(x=>x.lastDate).sort().pop();
+let DATA = {}, PE = {};
+const css = getComputedStyle(document.documentElement);
 const sel = document.getElementById('tickerSel');
+const peSel = document.getElementById('peSel');
 const rangeSel = document.getElementById('rangeSel');
-const keys = Object.keys(DATA).sort((a,b)=>DATA[a].ticker.localeCompare(DATA[b].ticker));
-keys.forEach(k=>{
-  const o=document.createElement('option'); o.value=k; o.textContent=DATA[k].ticker; sel.appendChild(o);
-});
+let chart, peChart, quadChart, currentView = 'chart';
 
-let chart;
 function fmtPct(x){ return (x>=0?'+':'')+(x*100).toFixed(1)+'%'; }
-
-function render(key){
-  const d = DATA[key];
-  let dates = d.dates, ratio = d.ratio;
+function shortName(t){ return t.toUpperCase().split(' ')[0]; }
+const NAMES = {
+  'SPX':'S&P 500','SPY':'SPDR S&P 500 ETF','QQQ':'Invesco QQQ (Nasdaq-100)','NDX':'Nasdaq-100',
+  'EWZ':'iShares MSCI Brazil','AIRR':'First Trust RBA Amer. Industrial Renaissance','EQCH':'Invesco EQQQ Nasdaq-100 (CHF Hedged)',
+  'NU':'Nu Holdings','IGV':'iShares Expanded Tech-Software','NOW':'ServiceNow','IBM':'IBM','MU':'Micron Technology',
+  'TIP':'iShares TIPS Bond','TLT':'iShares 20+ Year Treasury','SPOT':'Spotify','XAU':'Ouro (spot)',
+  'XLE':'Energy Select Sector SPDR','HYG':'iShares iBoxx High Yield','UBER':'Uber Technologies',
+  'BNK':'Amundi Stoxx Europe 600 Banks','XLF':'Financial Select Sector SPDR','AMZN':'Amazon','GOOGL':'Alphabet',
+  'MSFT':'Microsoft','NVDA':'NVIDIA','META':'Meta Platforms','IEUR':'iShares Core MSCI Europe','AAPL':'Apple',
+  'TSM':'TSMC (ADR)','SOXX':'iShares Semiconductor','ASML':'ASML Holding','EWL':'iShares MSCI Switzerland',
+  'EWY':'iShares MSCI South Korea','EWJ':'iShares MSCI Japan','COPX':'Global X Copper Miners',
+  'PICK':'iShares Global Metals & Mining','GDX':'VanEck Gold Miners',
+  'S5ENRS':'S&P 500 Energia (setor)','S5FINL':'S&P 500 Financeiro (setor)','NFLX':'Netflix',
+  'SX7E':'Euro Stoxx Banks (índice)','SOX':'PHLX Semiconductor (índice)','LLY':'Eli Lilly','IRM':'Iron Mountain',
+  'JBL':'Jabil','VRT':'Vertiv','MELI':'MercadoLibre','VALE':'Vale (ADR)','BRK/B':'Berkshire Hathaway'
+};
+// equivalências PE (índices) <-> técnico (ETFs) para sincronizar abas e cruzar quadrantes
+const PE2TEC = {'NDX':'QQQ','SOX':'SOXX','S5ENRS':'XLE','S5FINL':'XLF','SX7E':'BNK'};
+const TEC2PE = Object.fromEntries(Object.entries(PE2TEC).map(([a,b])=>[b,a]));
+function dispName(t){ const s=shortName(t); return NAMES[s] ? s+' — '+NAMES[s] : t; }
+function titleName(t){ const s=shortName(t); return NAMES[s] ? NAMES[s]+' ('+t+')' : t; }
+function windowed(d){
+  let dates = d.dates, vals = d.ratio;
   const yrs = rangeSel.value;
   if(yrs!=='all'){
     const cutoff = new Date(d.lastDate); cutoff.setFullYear(cutoff.getFullYear()-(+yrs));
     const c = cutoff.toISOString().slice(0,10);
     const i0 = dates.findIndex(x=>x>=c);
-    if(i0>0){ dates=dates.slice(i0); ratio=ratio.slice(i0); }
+    if(i0>0){ dates=dates.slice(i0); vals=vals.slice(i0); }
   }
-  const mean = ratio.reduce((a,b)=>a+b,0)/ratio.length;
-  const sd = Math.sqrt(ratio.reduce((a,b)=>a+(b-mean)**2,0)/ratio.length);
-  const up = mean+sd, dn = mean-sd;
-  const last = ratio[ratio.length-1];
-  const z = sd>0 ? (last-mean)/sd : 0;
+  const mean = vals.reduce((a,b)=>a+b,0)/vals.length;
+  const sd = Math.sqrt(vals.reduce((a,b)=>a+(b-mean)**2,0)/vals.length);
+  return {dates, vals, mean, sd};
+}
+function windowedRobust(d){
+  const w = windowed(d);
+  const sv = [...w.vals].sort((a,b)=>a-b);
+  const pct = p => { const k=(sv.length-1)*p, f=Math.floor(k); return sv[f]+(sv[Math.min(f+1,sv.length-1)]-sv[f])*(k-f); };
+  w.mean = pct(0.5);                 // mediana
+  w.sd = (pct(0.84)-pct(0.16))/2;    // 1 sigma robusto (percentis)
+  w.p98 = pct(0.98);
+  return w;
+}
+const xTicks = { autoSkip:false, maxRotation:0, font:{family:'Georgia', size:11}, callback:function(v,i){
+  const labels=this.chart.data.labels;
+  const nYears=new Set(labels.map(l=>l.slice(0,4))).size;
+  if(nYears<=2){
+    const m=labels[i].slice(0,7);
+    if(i>0 && labels[i-1].slice(0,7)===m) return null;
+    return (+labels[i].slice(5,7))%3===1 ? m : null;
+  }
+  const yr=labels[i].slice(0,4);
+  if(i>0 && labels[i-1].slice(0,4)===yr) return null;
+  return yr;
+}};
 
-  const css = getComputedStyle(document.documentElement);
-  if(chart) chart.destroy();
-  chart = new Chart(document.getElementById('chart'), {
+function lineConfig(title, dates, vals, mean, sd, yFmt, tooltipFmt, meanLabel='Média', yMax=null){
+  const cfg = {
     type:'line',
     data:{ labels:dates, datasets:[
-      { label:'Preço / MM200d', data:ratio, borderColor:css.getPropertyValue('--line'), borderWidth:1.4, pointRadius:0, tension:0 },
-      { label:'Média', data:dates.map(()=>mean), borderColor:css.getPropertyValue('--mean'), borderWidth:1.2, borderDash:[6,4], pointRadius:0 },
-      { label:'+1σ', data:dates.map(()=>up), borderColor:css.getPropertyValue('--band'), borderWidth:1, borderDash:[4,4], pointRadius:0 },
-      { label:'−1σ', data:dates.map(()=>dn), borderColor:css.getPropertyValue('--band'), borderWidth:1, borderDash:[4,4], pointRadius:0 }
+      { label:title.split(' — ')[1]||'Série', data:vals, borderColor:css.getPropertyValue('--line'), borderWidth:1.4, pointRadius:0, tension:0 },
+      { label:meanLabel, data:dates.map(()=>mean), borderColor:css.getPropertyValue('--mean'), borderWidth:1.2, borderDash:[6,4], pointRadius:0 },
+      { label:'+1σ', data:dates.map(()=>mean+sd), borderColor:css.getPropertyValue('--band'), borderWidth:1, borderDash:[4,4], pointRadius:0 },
+      { label:'−1σ', data:dates.map(()=>mean-sd), borderColor:css.getPropertyValue('--band'), borderWidth:1, borderDash:[4,4], pointRadius:0 }
     ]},
     options:{
       responsive:true, maintainAspectRatio:false, animation:false,
       interaction:{mode:'index', intersect:false},
       plugins:{
-        legend:{labels:{font:{family:'Georgia'}, boxWidth:18, usePointStyle:false}},
-        title:{display:true, text:d.ticker+' — Preço relativo à MM de 200 dias', font:{family:'Georgia', size:15, weight:'normal'}, color:'#1a1a1a', padding:{bottom:10}},
-        tooltip:{callbacks:{label:(c)=>c.dataset.label+': '+c.parsed.y.toFixed(3)+'  ('+fmtPct(c.parsed.y-1)+' vs MM200)'}}
+        legend:{labels:{font:{family:'Georgia'}, boxWidth:18}},
+        title:{display:true, text:title, font:{family:'Georgia', size:15, weight:'normal'}, color:'#1a1a1a', padding:{bottom:10}},
+        tooltip:{callbacks:{label:tooltipFmt}}
       },
       scales:{
-        x:{ ticks:{autoSkip:false, maxRotation:0, font:{family:'Georgia', size:11}, callback:function(v,i){
-              const labels=this.chart.data.labels;
-              const nYears=new Set(labels.map(l=>l.slice(0,4))).size;
-              if(nYears<=2){
-                const m=labels[i].slice(0,7);
-                if(i>0 && labels[i-1].slice(0,7)===m) return null;
-                return (+labels[i].slice(5,7))%3===1 ? m : null;
-              }
-              const yr=labels[i].slice(0,4);
-              if(i>0 && labels[i-1].slice(0,4)===yr) return null;
-              return yr;
-            }}, grid:{display:false} },
-        y:{ ticks:{font:{family:'Georgia', size:11}, callback:v=>v.toFixed(2)}, grid:{color:'#eeece7'} }
+        x:{ ticks:xTicks, grid:{display:false} },
+        y:{ ticks:{font:{family:'Georgia', size:11}, callback:yFmt}, grid:{color:'#eeece7'} }
       }
     }
-  });
+  };
+  if(yMax!==null) cfg.options.scales.y.max = yMax;
+  return cfg;
+}
 
+function renderChart(key){
+  const d = DATA[key];
+  const w = windowed(d);
+  const last = w.vals[w.vals.length-1];
+  const z = w.sd>0 ? (last-w.mean)/w.sd : 0;
+  if(chart) chart.destroy();
+  chart = new Chart(document.getElementById('chart'),
+    lineConfig(titleName(d.ticker)+' — Preço relativo à MM de 200 dias', w.dates, w.vals, w.mean, w.sd,
+      v=>v.toFixed(2),
+      c=>c.dataset.label+': '+c.parsed.y.toFixed(3)+'  ('+fmtPct(c.parsed.y-1)+' vs MM200)'));
   document.getElementById('statsRow').innerHTML =
     '<span>Último: <b>'+last.toFixed(3)+'</b> ('+fmtPct(last-1)+' vs MM200)</span>'+
-    '<span>Média: <b>'+mean.toFixed(3)+'</b></span>'+
-    '<span>±1σ: <b>'+dn.toFixed(3)+' / '+up.toFixed(3)+'</b></span>'+
+    '<span>Média: <b>'+w.mean.toFixed(3)+'</b></span>'+
+    '<span>±1σ: <b>'+(w.mean-w.sd).toFixed(3)+' / '+(w.mean+w.sd).toFixed(3)+'</b></span>'+
     '<span>Z-Score: <b>'+z.toFixed(2)+'</b></span>'+
-    '<span>Período: <b>'+dates[0].slice(0,10)+' → '+dates[dates.length-1].slice(0,10)+'</b></span>';
+    '<span>Período: <b>'+w.dates[0].slice(0,10)+' → '+w.dates[w.dates.length-1].slice(0,10)+'</b></span>';
+}
+
+function renderPe(key){
+  const d = PE[key];
+  const w = windowedRobust(d);
+  const last = w.vals[w.vals.length-1];
+  const z = w.sd>0 ? (last-w.mean)/w.sd : 0;
+  const maxVal = Math.max(...w.vals);
+  const cap = Math.max(w.mean + 5*w.sd, w.p98*1.15, last*1.15);
+  const clipped = maxVal > cap;
+  if(peChart) peChart.destroy();
+  peChart = new Chart(document.getElementById('peChart'),
+    lineConfig(titleName(d.ticker)+' — P/E (12m trailing)', w.dates, w.vals, w.mean, w.sd,
+      v=>v.toFixed(1)+'x',
+      c=>c.dataset.label+': '+c.parsed.y.toFixed(2)+'x',
+      'Mediana', clipped ? cap : null));
+  const warn = d.n < 104 ? ' <span class="shortHist">⚠ histórico curto ('+d.n+' obs)</span>' : '';
+  const clipNote = clipped ? ' <span class="shortHist">· picos acima de '+cap.toFixed(0)+'x cortados do gráfico (máx: '+maxVal.toFixed(0)+'x)</span>' : '';
+  document.getElementById('peStatsRow').innerHTML =
+    '<span>Último: <b>'+last.toFixed(1)+'x</b></span>'+
+    '<span>Mediana: <b>'+w.mean.toFixed(1)+'x</b></span>'+
+    '<span>±1σ (P16/P84): <b>'+(w.mean-w.sd).toFixed(1)+'x / '+(w.mean+w.sd).toFixed(1)+'x</b></span>'+
+    '<span>Z-Score: <b>'+z.toFixed(2)+'</b></span>'+
+    '<span>Período: <b>'+w.dates[0].slice(0,10)+' → '+w.dates[w.dates.length-1].slice(0,10)+'</b>'+warn+clipNote+'</span>';
+}
+
+const quadLabelPlugin = {
+  id:'quadLabels',
+  afterDatasetsDraw(c){
+    const {ctx} = c;
+    ctx.save();
+    ctx.font = '10px Inter, Arial, sans-serif';
+    ctx.fillStyle = '#1a1a1a';
+    c.data.datasets[0].data.forEach((p,i)=>{
+      const meta = c.getDatasetMeta(0).data[i];
+      ctx.fillText(p.label, meta.x+6, meta.y-5);
+    });
+    // quadrant captions
+    const xs = c.scales.x, ys = c.scales.y;
+    ctx.font = 'italic 11px Georgia';
+    ctx.fillStyle = '#9b9b9b';
+    const x0 = xs.getPixelForValue(0), y0 = ys.getPixelForValue(0);
+    ctx.textAlign='left';  ctx.fillText('caro & esticado', x0+10, ys.top+14);
+    ctx.textAlign='right'; ctx.fillText('barato & esticado', x0-10, ys.top+14);
+    ctx.textAlign='left';  ctx.fillText('caro & deprimido', x0+10, ys.bottom-8);
+    ctx.textAlign='right'; ctx.fillText('barato & deprimido', x0-10, ys.bottom-8);
+    ctx.restore();
+  }
+};
+
+function renderQuad(){
+  const points = [];
+  const tecByShort = {};
+  Object.values(DATA).forEach(d=>{ tecByShort[shortName(d.ticker)] = d; });
+  Object.values(PE).forEach(p=>{
+    const s = shortName(p.ticker);
+    const d = tecByShort[s] || tecByShort[PE2TEC[s]];
+    if(!d) return;
+    const zt = d.sd>0 ? (d.last-d.mean)/d.sd : 0;
+    const zv = p.sd>0 ? (p.last-p.mean)/p.sd : 0;
+    points.push({x:zv, y:zt, label:shortName(d.ticker) + (p.n<104?' ⚠':'')});
+  });
+  if(quadChart) quadChart.destroy();
+  quadChart = new Chart(document.getElementById('quadChart'), {
+    type:'scatter',
+    data:{ datasets:[{ data:points, pointRadius:5, pointHoverRadius:7,
+      backgroundColor:points.map(p=> p.x>0&&p.y>0 ? css.getPropertyValue('--red') : (p.x<0&&p.y<0 ? css.getPropertyValue('--green') : css.getPropertyValue('--line'))) }]},
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:false,
+      plugins:{
+        legend:{display:false},
+        title:{display:true, text:'Z-Score de Valuation (P/E) × Z-Score Técnico (MM200)', font:{family:'Georgia', size:15, weight:'normal'}, color:'#1a1a1a', padding:{bottom:10}},
+        tooltip:{callbacks:{label:c=>{
+          const p=c.raw; return p.label+': valuation '+p.x.toFixed(2)+'σ · técnico '+p.y.toFixed(2)+'σ';
+        }}}
+      },
+      scales:{
+        x:{ title:{display:true, text:'← barato · Z-Score P/E · caro →', font:{family:'Georgia', size:12}}, grid:{color:ctx=>ctx.tick.value===0?'#888':'#eeece7', lineWidth:ctx=>ctx.tick.value===0?1.5:1}, ticks:{font:{family:'Georgia', size:11}} },
+        y:{ title:{display:true, text:'← deprimido · Z-Score MM200 · esticado →', font:{family:'Georgia', size:12}}, grid:{color:ctx=>ctx.tick.value===0?'#888':'#eeece7', lineWidth:ctx=>ctx.tick.value===0?1.5:1}, ticks:{font:{family:'Georgia', size:11}} }
+      }
+    },
+    plugins:[quadLabelPlugin]
+  });
 }
 
 function buildTable(sortKey='z', asc=false){
+  const keys = Object.keys(DATA);
   const rows = keys.map(k=>{
     const d=DATA[k];
     return { key:k, ticker:d.ticker, last:d.last, dist:d.last-1, z:d.sd>0?(d.last-d.mean)/d.sd:0, n:d.n };
@@ -170,13 +321,14 @@ function buildTable(sortKey='z', asc=false){
     const w = Math.abs(r.z)/maxZ*90;
     const col = r.z>=0?'var(--red)':'var(--green)';
     const pos = r.z>1 ? 'Acima de +1σ' : (r.z<-1 ? 'Abaixo de −1σ' : 'Dentro da banda');
-    return '<tr data-k="'+r.key+'"><td>'+r.ticker+'</td><td>'+r.last.toFixed(3)+'</td>'+
+    const nm = NAMES[shortName(r.ticker)];
+    return '<tr data-k="'+r.key+'"><td><b>'+shortName(r.ticker)+'</b>'+(nm?' <span style="color:var(--muted);font-size:12px">'+nm+'</span>':' '+r.ticker)+'</td><td>'+r.last.toFixed(3)+'</td>'+
       '<td class="'+cls+'">'+fmtPct(r.dist)+'</td>'+
       '<td class="'+cls+'">'+r.z.toFixed(2)+' <span class="zbar" style="width:'+w+'px;background:'+col+'"></span></td>'+
       '<td>'+pos+'</td><td>'+r.n.toLocaleString('pt-BR')+'</td></tr>';
   }).join('');
   tb.querySelectorAll('tr').forEach(tr=>tr.addEventListener('click',()=>{
-    sel.value = tr.dataset.k; showChart(); render(tr.dataset.k);
+    sel.value = tr.dataset.k; setView('chart'); renderChart(tr.dataset.k);
   }));
 }
 
@@ -189,20 +341,56 @@ document.querySelectorAll('#ovTable th[data-k]').forEach(th=>{
   });
 });
 
-const tabChart=document.getElementById('tabChart'), tabTable=document.getElementById('tabTable');
-function showChart(){ tabChart.classList.add('active'); tabTable.classList.remove('active');
-  document.getElementById('chartCard').style.display=''; document.getElementById('tableCard').style.display='none'; }
-function showTable(){ tabTable.classList.add('active'); tabChart.classList.remove('active');
-  document.getElementById('tableCard').style.display=''; document.getElementById('chartCard').style.display='none'; }
-tabChart.addEventListener('click', showChart);
-tabTable.addEventListener('click', showTable);
+function syncSelection(target){
+  if(target==='pe'){
+    const s = shortName(DATA[sel.value].ticker);
+    const want = TEC2PE[s] || s;
+    const k = Object.keys(PE).find(k=>shortName(PE[k].ticker)===want);
+    if(k) peSel.value = k;
+  } else {
+    const s = shortName(PE[peSel.value].ticker);
+    const want = PE2TEC[s] || s;
+    const k = Object.keys(DATA).find(k=>shortName(DATA[k].ticker)===want);
+    if(k) sel.value = k;
+  }
+}
+function setView(v){
+  const prev = currentView;
+  if(v==='pe' && (prev==='chart'||prev==='table') && Object.keys(PE).length) syncSelection('pe');
+  if(v==='chart' && prev==='pe') syncSelection('chart');
+  currentView = v;
+  document.querySelectorAll('.view').forEach(el=>el.style.display='none');
+  document.getElementById('view-'+v).style.display='';
+  document.querySelectorAll('button.tab').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
+  sel.style.display   = v==='chart' ? '' : 'none';
+  peSel.style.display = v==='pe' ? '' : 'none';
+  rangeSel.style.display = (v==='chart'||v==='pe') ? '' : 'none';
+  if(v==='chart') renderChart(sel.value);
+  if(v==='pe') renderPe(peSel.value);
+  if(v==='quad') renderQuad();
+  if(v==='table') buildTable(sortState.k, sortState.asc);
+}
+document.querySelectorAll('button.tab').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
+sel.addEventListener('change', ()=>renderChart(sel.value));
+peSel.addEventListener('change', ()=>renderPe(peSel.value));
+rangeSel.addEventListener('change', ()=>{ if(currentView==='chart') renderChart(sel.value); if(currentView==='pe') renderPe(peSel.value); });
 
-sel.addEventListener('change', ()=>render(sel.value));
-rangeSel.addEventListener('change', ()=>render(sel.value));
-
-sel.value = keys.find(k=>DATA[k].ticker.startsWith('SPX')) || keys[0];
-buildTable();
-render(sel.value);
+Promise.all([
+  fetch('data.json').then(r=>r.json()),
+  fetch('pe.json').then(r=>r.ok?r.json():{}).catch(()=>({}))
+]).then(([d, pe])=>{
+  DATA = d; PE = pe;
+  const keys = Object.keys(DATA).sort((a,b)=>DATA[a].ticker.localeCompare(DATA[b].ticker));
+  keys.forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=dispName(DATA[k].ticker); sel.appendChild(o); });
+  const peKeys = Object.keys(PE).sort((a,b)=>PE[a].ticker.localeCompare(PE[b].ticker));
+  peKeys.forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=dispName(PE[k].ticker) + (PE[k].n<104?' ⚠':''); peSel.appendChild(o); });
+  if(peKeys.length){ document.getElementById('tabPe').style.display=''; document.getElementById('tabQuad').style.display=''; }
+  const allDates = Object.values(DATA).map(x=>x.lastDate).concat(Object.values(PE).map(x=>x.lastDate));
+  document.getElementById('lastDate').textContent = allDates.sort().pop() || '—';
+  sel.value = keys.find(k=>DATA[k].ticker.startsWith('SPX')) || keys[0];
+  if(peKeys.length) peSel.value = peKeys.find(k=>PE[k].ticker.startsWith('SPX')) || peKeys[0];
+  buildTable();
+  renderChart(sel.value);
 });
 </script>
 </body>

@@ -105,5 +105,74 @@ def main(path="OB_OS.xlsx"):
         json.dump(out, f)
     print(f"\ndata.json gerado: {len(out)} ativos")
 
+
+
+# ---------- P/E (formato wide: p_e.xlsx) ----------
+PE_FILE = "p_e.xlsx"
+MIN_OBS_PE = 30
+
+def build_pe(path=PE_FILE):
+    import os
+    if not os.path.exists(path):
+        print(f"{path} não encontrado — pe.json não gerado (aba Valuation ficará oculta)")
+        return
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    sh = wb[wb.sheetnames[0]]
+    rows = [list(r) for r in sh.iter_rows(values_only=True)]
+    # localizar linha de tickers: a que tem mais células contendo Equity/Index/Curncy
+    hdr_i, hdr_score = None, 0
+    for i, r in enumerate(rows[:15]):
+        score = sum(1 for v in r if isinstance(v, str) and any(k in v.lower() for k in ("equity", "index", "curncy", "comdty")))
+        if score > hdr_score:
+            hdr_i, hdr_score = i, score
+    if hdr_i is None:
+        print("AVISO: linha de tickers não encontrada no arquivo de P/E", file=sys.stderr)
+        return
+    headers = rows[hdr_i]
+    datesA = parse_date_column([r[0] if r else None for r in rows])
+    out = {}
+    for j, t in enumerate(headers):
+        if not isinstance(t, str) or not t.strip() or j == 0:
+            continue
+        t = t.strip()
+        series = []
+        for i, r in enumerate(rows):
+            if not datesA[i] or j >= len(r):
+                continue
+            v = to_number(r[j])
+            if v is not None and v > 0:
+                series.append((datesA[i], v))
+        if len(series) < MIN_OBS_PE:
+            if series or any(isinstance(r[j] if j < len(r) else None, str) for r in rows[hdr_i+1:]):
+                print(f"P/E: '{t}' ignorado ({len(series)} obs — insuficiente)", file=sys.stderr)
+            continue
+        series.sort()
+        vals = [v for _, v in series]
+        # Estatística robusta (trailing P/E tem picos extremos quando o lucro colapsa):
+        # mediana no lugar da média; (P84-P16)/2 como equivalente robusto de 1 sigma.
+        sv = sorted(vals)
+        def pct(p):
+            k = (len(sv) - 1) * p
+            f = int(k)
+            return sv[f] + (sv[min(f + 1, len(sv) - 1)] - sv[f]) * (k - f)
+        med, p16, p84 = pct(0.5), pct(0.16), pct(0.84)
+        out[t] = {
+            "ticker": t.upper(),
+            "dates": [d.isoformat() for d, _ in series],
+            "ratio": [round(v, 3) for v in vals],
+            "mean": round(med, 3),
+            "sd": round((p84 - p16) / 2, 3),
+            "last": round(vals[-1], 3),
+            "lastDate": series[-1][0].isoformat(),
+            "n": len(vals),
+            "robust": True,
+        }
+        print(f"P/E  {t:22s} {len(vals):>5d} obs  {series[0][0]} → {series[-1][0]}")
+    with open("pe.json", "w") as f:
+        json.dump(out, f)
+    print(f"pe.json gerado: {len(out)} ativos")
+
 if __name__ == "__main__":
     main(sys.argv[1] if len(sys.argv) > 1 else "OB_OS.xlsx")
+    build_pe(sys.argv[2] if len(sys.argv) > 2 else PE_FILE)
+
