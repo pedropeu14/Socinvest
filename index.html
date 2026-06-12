@@ -407,6 +407,7 @@ function setView(v){
 let catSelIdx = 0, catBuilt = false;
 function renderCat(){
   if(!CAT) return;
+  if(!CAT._sorted){ CAT.etfs.sort((a,b)=>a.ticker.localeCompare(b.ticker)); CAT._sorted = true; }
   if(!catBuilt){
     const list = document.getElementById('catList');
     list.innerHTML = CAT.etfs.map((e,i)=>{
@@ -485,9 +486,9 @@ Promise.all([
 ]).then(([d, pe, cat])=>{
   DATA = d; PE = pe; CAT = cat;
   if(CAT && CAT.etfs.length) document.getElementById('tabCat').style.display='';
-  const keys = Object.keys(DATA).sort((a,b)=>DATA[a].ticker.localeCompare(DATA[b].ticker));
+  const keys = Object.keys(DATA).sort((a,b)=>dispName(DATA[a].ticker).localeCompare(dispName(DATA[b].ticker)));
   keys.forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=dispName(DATA[k].ticker); sel.appendChild(o); });
-  const peKeys = Object.keys(PE).sort((a,b)=>PE[a].ticker.localeCompare(PE[b].ticker));
+  const peKeys = Object.keys(PE).sort((a,b)=>dispName(PE[a].ticker).localeCompare(dispName(PE[b].ticker)));
   peKeys.forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=dispName(PE[k].ticker) + (PE[k].n<104?' ⚠':''); peSel.appendChild(o); });
   if(peKeys.length){ document.getElementById('tabPe').style.display=''; document.getElementById('tabQuad').style.display=''; }
   const allDates = Object.values(DATA).map(x=>x.lastDate).concat(Object.values(PE).map(x=>x.lastDate));
