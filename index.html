@@ -14,7 +14,7 @@
   *{box-sizing:border-box; margin:0; padding:0;}
   body{font-family:Georgia,'Times New Roman',serif; background:var(--bg); color:var(--ink); line-height:1.5;}
   header{max-width:1100px; margin:0 auto; padding:36px 24px 12px;}
-  .brand{font-size:13px; letter-spacing:2.5px; text-transform:uppercase; color:var(--accent); font-weight:bold; margin-bottom:8px;}
+  .brand{font-size:24px; letter-spacing:4px; text-transform:uppercase; color:#b30000; font-weight:bold; margin-bottom:10px; font-family:Georgia,serif;}
   h1{font-size:26px; font-weight:normal; letter-spacing:.3px;}
   .subtitle{color:var(--muted); font-size:14px; margin-top:6px; font-style:italic;}
   .rule{border-top:2px solid var(--ink); max-width:1100px; margin:14px auto 0;}
@@ -42,6 +42,21 @@
   details.method .inner{background:var(--card); border:1px solid var(--border); border-radius:4px; padding:18px 22px; font-size:14px;}
   details.method .inner p{margin-bottom:10px;}
   details.method .inner b{font-size:14px;}
+  .catGrid{display:grid; grid-template-columns:280px 1fr; gap:18px;}
+  .catList{border-right:1px solid var(--border); padding-right:14px; max-height:560px; overflow-y:auto;}
+  .catItem{padding:9px 10px; cursor:pointer; border-radius:3px; border-bottom:1px solid var(--border);}
+  .catItem:hover{background:#faf9f6;}
+  .catItem.sel{background:var(--accent); color:#fff;}
+  .catItem.sel .catSub{color:#dce6f0;}
+  .catTick{font-weight:bold; font-size:14px;}
+  .catSub{font-size:11.5px; color:var(--muted);}
+  .catBadge{display:inline-block; font-size:10px; padding:1px 6px; border:1px solid currentColor; border-radius:8px; margin-left:6px; vertical-align:middle;}
+  .holdBar{display:inline-block; height:10px; background:var(--accent); border-radius:2px; vertical-align:middle; margin-right:6px;}
+  .ovWrap{overflow-x:auto; max-height:600px; overflow-y:auto;}
+  .ovWrap table{font-size:12px;}
+  .ovWrap th{position:sticky; top:0; background:var(--card); z-index:1; font-size:11px;}
+  .ovCell{text-align:center; min-width:52px;}
+  @media (max-width:760px){ .catGrid{grid-template-columns:1fr;} .catList{border-right:none; max-height:240px;} }
   @media (max-width:640px){ .chart-wrap{height:320px;} .chart-wrap.tall{height:420px;} h1{font-size:21px;} }
 </style>
 </head>
@@ -58,6 +73,7 @@
     <button class="tab" data-view="table">Z-Scores (MM200)</button>
     <button class="tab" data-view="pe" id="tabPe" style="display:none">Valuation (P/E)</button>
     <button class="tab" data-view="quad" id="tabQuad" style="display:none">Quadrantes</button>
+    <button class="tab" data-view="cat" id="tabCat" style="display:none">Catálogo de ETFs</button>
     <select id="tickerSel"></select>
     <select id="peSel" style="display:none"></select>
     <select id="rangeSel">
@@ -100,6 +116,20 @@
     <div class="chart-wrap tall"><canvas id="quadChart"></canvas></div>
     <div class="note">Eixo X: Z-Score de valuation (P/E vs. média histórica) · Eixo Y: Z-Score técnico (preço vs. MM200). Calculados sobre o histórico completo de cada ativo. Apenas ativos presentes nos dois conjuntos de dados. Ativos com histórico de P/E curto marcados com ⚠.</div>
   </div>
+  <div class="card view" id="view-cat" style="display:none">
+    <div class="controls" style="margin:0 0 14px">
+      <button class="tab active" id="catTabFichas">Fichas</button>
+      <button class="tab" id="catTabOverlap">Matriz de Overlap</button>
+    </div>
+    <div id="catFichas" class="catGrid">
+      <div class="catList" id="catList"></div>
+      <div id="catDetail"></div>
+    </div>
+    <div id="catOverlap" style="display:none">
+      <div class="ovWrap"><table id="ovMatrix"></table></div>
+      <div class="note" id="ovNote"></div>
+    </div>
+  </div>
 </main>
 
 <details class="method">
@@ -115,7 +145,7 @@
 <footer>Fonte: Bloomberg (MOV_AVG_200D, PX_LAST, PE_RATIO). Última observação: <span id="lastDate">—</span>. Documento de pesquisa — não constitui recomendação de investimento.</footer>
 
 <script>
-let DATA = {}, PE = {};
+let DATA = {}, PE = {}, CAT = null;
 const css = getComputedStyle(document.documentElement);
 const sel = document.getElementById('tickerSel');
 const peSel = document.getElementById('peSel');
@@ -355,6 +385,7 @@ function syncSelection(target){
   }
 }
 function setView(v){
+  if(!v || !document.getElementById('view-'+v)) return;
   const prev = currentView;
   if(v==='pe' && (prev==='chart'||prev==='table') && Object.keys(PE).length) syncSelection('pe');
   if(v==='chart' && prev==='pe') syncSelection('chart');
@@ -369,17 +400,91 @@ function setView(v){
   if(v==='pe') renderPe(peSel.value);
   if(v==='quad') renderQuad();
   if(v==='table') buildTable(sortState.k, sortState.asc);
+  if(v==='cat') renderCat();
 }
-document.querySelectorAll('button.tab').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
+
+// ---------- Catálogo ----------
+let catSelIdx = 0, catBuilt = false;
+function renderCat(){
+  if(!CAT) return;
+  if(!catBuilt){
+    const list = document.getElementById('catList');
+    list.innerHTML = CAT.etfs.map((e,i)=>{
+      const tec = Object.keys(DATA).find(k=>shortName(DATA[k].ticker)===shortName(e.ticker));
+      return '<div class="catItem'+(i===catSelIdx?' sel':'')+'" data-i="'+i+'">'+
+        '<div class="catTick">'+e.ticker.replace(' Equity','')+(tec?'<span class="catBadge">no monitor</span>':'')+'</div>'+
+        '<div class="catSub">'+e.nome+'</div>'+
+        '<div class="catSub">'+e.categoria+' · TER '+(e.ter!=null?(e.ter*100).toFixed(2)+'%':'—')+'</div></div>';
+    }).join('');
+    list.querySelectorAll('.catItem').forEach(el=>el.addEventListener('click',()=>{
+      catSelIdx = +el.dataset.i;
+      list.querySelectorAll('.catItem').forEach(x=>x.classList.toggle('sel', +x.dataset.i===catSelIdx));
+      renderCatDetail();
+    }));
+    document.getElementById('catTabFichas').addEventListener('click',()=>{
+      document.getElementById('catFichas').style.display='';
+      document.getElementById('catOverlap').style.display='none';
+      document.getElementById('catTabFichas').classList.add('active');
+      document.getElementById('catTabOverlap').classList.remove('active');
+    });
+    document.getElementById('catTabOverlap').addEventListener('click',()=>{
+      document.getElementById('catFichas').style.display='none';
+      document.getElementById('catOverlap').style.display='';
+      document.getElementById('catTabOverlap').classList.add('active');
+      document.getElementById('catTabFichas').classList.remove('active');
+      renderOverlap();
+    });
+    catBuilt = true;
+  }
+  renderCatDetail();
+}
+function renderCatDetail(){
+  const e = CAT.etfs[catSelIdx];
+  const maxW = Math.max(...e.holdings.map(h=>h.peso||0), 1e-9);
+  const tecKey = Object.keys(DATA).find(k=>shortName(DATA[k].ticker)===shortName(e.ticker));
+  const link = tecKey ? '<button class="tab" style="margin-left:10px" onclick="sel.value=\''+tecKey+'\';setView(\'chart\')">ver gráfico técnico →</button>' : '';
+  let h = '<h2 style="font-size:19px;font-weight:normal">'+e.ticker.replace(' Equity','')+' — '+e.nome+link+'</h2>'+
+    '<div class="note" style="margin:4px 0 10px">'+e.emissor+' · '+e.categoria+' · '+e.domicilio+' · '+e.moeda+' · TER '+(e.ter!=null?(e.ter*100).toFixed(2)+'%':'—')+'</div>'+
+    '<p style="font-size:13.5px;margin-bottom:14px">'+e.descricao+'</p>'+
+    '<table><thead><tr><th>#</th><th>Ativo</th><th>Ticker</th><th style="min-width:170px">Peso</th></tr></thead><tbody>';
+  e.holdings.forEach((x,i)=>{
+    const w = (x.peso||0)/maxW*110;
+    h += '<tr><td>'+(i+1)+'</td><td>'+x.ativo+'</td><td style="color:var(--muted)">'+x.tic+'</td>'+
+      '<td><span class="holdBar" style="width:'+Math.max(w,2)+'px"></span>'+(x.peso!=null?(x.peso*100).toFixed(2)+'%':'—')+'</td></tr>';
+  });
+  h += '</tbody></table>';
+  if(e.fonte) h += '<div class="note" style="margin-top:10px">'+e.fonte+'</div>';
+  document.getElementById('catDetail').innerHTML = h;
+}
+function heat(p, max){
+  if(p==null) return '';
+  const a = Math.min(p/max, 1);
+  return 'background:rgba(31,78,121,'+(0.12+0.55*a).toFixed(2)+');color:'+(a>0.55?'#fff':'#1a1a1a');
+}
+function renderOverlap(){
+  const ov = CAT.overlap;
+  const maxP = Math.max(...ov.rows.flatMap(r=>r.pesos.filter(p=>p!=null)), 1e-9);
+  let h = '<thead><tr><th>Ticker</th><th>Ativo</th><th>Nº</th>'+ov.tickers.map(t=>'<th class="ovCell">'+t+'</th>').join('')+'</tr></thead><tbody>';
+  ov.rows.forEach(r=>{
+    h += '<tr><td style="white-space:nowrap">'+r.tic+'</td><td>'+r.ativo+'</td><td style="text-align:center;font-weight:'+(r.n>1?'bold':'normal')+'">'+r.n+'</td>'+
+      r.pesos.map(p=>'<td class="ovCell" style="'+heat(p,maxP)+'">'+(p!=null?(p*100).toFixed(1)+'%':'')+'</td>').join('')+'</tr>';
+  });
+  h += '</tbody>';
+  document.getElementById('ovMatrix').innerHTML = h;
+  document.getElementById('ovNote').textContent = 'Intensidade da cor = peso da posição no fundo. Overlap calculado apenas sobre as posições transcritas (top de cada fundo); sobreposições adicionais podem existir nas posições não listadas.';
+}
+document.querySelectorAll('button.tab[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
 sel.addEventListener('change', ()=>renderChart(sel.value));
 peSel.addEventListener('change', ()=>renderPe(peSel.value));
 rangeSel.addEventListener('change', ()=>{ if(currentView==='chart') renderChart(sel.value); if(currentView==='pe') renderPe(peSel.value); });
 
 Promise.all([
   fetch('data.json').then(r=>r.json()),
-  fetch('pe.json').then(r=>r.ok?r.json():{}).catch(()=>({}))
-]).then(([d, pe])=>{
-  DATA = d; PE = pe;
+  fetch('pe.json').then(r=>r.ok?r.json():{}).catch(()=>({})),
+  fetch('catalogo.json').then(r=>r.ok?r.json():null).catch(()=>null)
+]).then(([d, pe, cat])=>{
+  DATA = d; PE = pe; CAT = cat;
+  if(CAT && CAT.etfs.length) document.getElementById('tabCat').style.display='';
   const keys = Object.keys(DATA).sort((a,b)=>DATA[a].ticker.localeCompare(DATA[b].ticker));
   keys.forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=dispName(DATA[k].ticker); sel.appendChild(o); });
   const peKeys = Object.keys(PE).sort((a,b)=>PE[a].ticker.localeCompare(PE[b].ticker));

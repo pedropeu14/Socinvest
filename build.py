@@ -172,7 +172,94 @@ def build_pe(path=PE_FILE):
         json.dump(out, f)
     print(f"pe.json gerado: {len(out)} ativos")
 
+
+
+# ---------- Catálogo de ETFs (Catalogo_de_ETFs.xlsx) ----------
+CAT_FILE = "Catalogo_de_ETFs.xlsx"
+
+def build_catalog(path=CAT_FILE):
+    import os, re
+    if not os.path.exists(path):
+        print(f"{path} não encontrado — catalogo.json não gerado (aba Catálogo ficará oculta)")
+        return
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    out = {"etfs": [], "overlap": {"tickers": [], "rows": []}}
+
+    # --- Índice ---
+    if "Indice" in wb.sheetnames:
+        rows = [list(r) for r in wb["Indice"].iter_rows(values_only=True)]
+        hdr = next((i for i, r in enumerate(rows) if r and r[0] == "Ticker"), None)
+        if hdr is not None:
+            for r in rows[hdr + 1:]:
+                if not r or not r[0]:
+                    continue
+                out["etfs"].append({
+                    "ticker": str(r[0]).strip(),
+                    "nome": str(r[1] or "").strip(),
+                    "emissor": str(r[2] or "").strip(),
+                    "categoria": str(r[3] or "").strip(),
+                    "domicilio": str(r[4] or "").strip(),
+                    "moeda": str(r[5] or "").strip(),
+                    "ter": to_number(r[6]),
+                    "descricao": "", "holdings": [], "fonte": "",
+                })
+
+    # --- Abas por ETF ---
+    by_key = {" ".join(e["ticker"].split()[:2]).upper(): e for e in out["etfs"]}
+    for name in wb.sheetnames:
+        if name in ("Indice", "Overlap"):
+            continue
+        key = name.replace("_", " ").upper()
+        e = by_key.get(key)
+        if e is None:
+            continue
+        rows = [list(r) for r in wb[name].iter_rows(values_only=True)]
+        mode = None
+        for r in rows:
+            a = r[0] if r else None
+            if isinstance(a, str):
+                s = a.strip()
+                if s.upper().startswith("O QUE E"):
+                    mode = "desc"; continue
+                if s.upper().startswith("HOLDINGS"):
+                    mode = None; continue
+                if s == "#":
+                    mode = "hold"; continue
+                if s.startswith("Fonte:"):
+                    e["fonte"] = s; mode = None; continue
+            if mode == "desc" and isinstance(a, str) and a.strip():
+                e["descricao"] = (e["descricao"] + " " + a.strip()).strip()
+            elif mode == "hold" and isinstance(a, (int, float)):
+                e["holdings"].append({
+                    "ativo": str(r[1] or "").strip(),
+                    "tic": str(r[2] or "").strip(),
+                    "peso": to_number(r[3]),
+                })
+        print(f"Catálogo: {e['ticker']:18s} {len(e['holdings']):>3d} holdings")
+
+    # --- Overlap ---
+    if "Overlap" in wb.sheetnames:
+        rows = [list(r) for r in wb["Overlap"].iter_rows(values_only=True)]
+        hdr = next((i for i, r in enumerate(rows) if r and r[0] == "Ticker"), None)
+        if hdr is not None:
+            cols = [str(c).strip() for c in rows[hdr][3:] if c]
+            out["overlap"]["tickers"] = cols
+            for r in rows[hdr + 1:]:
+                if not r or not r[0] or str(r[0]).startswith("Nota"):
+                    continue
+                pesos = [to_number(r[3 + j]) if 3 + j < len(r) else None for j in range(len(cols))]
+                if not any(p is not None for p in pesos):
+                    continue
+                out["overlap"]["rows"].append({
+                    "tic": str(r[0]).strip(), "ativo": str(r[1] or "").strip(),
+                    "n": int(to_number(r[2]) or 0), "pesos": pesos,
+                })
+    with open("catalogo.json", "w") as f:
+        json.dump(out, f)
+    print(f"catalogo.json gerado: {len(out['etfs'])} ETFs, {len(out['overlap']['rows'])} linhas de overlap")
+
 if __name__ == "__main__":
     main(sys.argv[1] if len(sys.argv) > 1 else "OB_OS.xlsx")
     build_pe(sys.argv[2] if len(sys.argv) > 2 else PE_FILE)
+    build_catalog(sys.argv[3] if len(sys.argv) > 3 else CAT_FILE)
 
