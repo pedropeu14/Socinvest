@@ -6,7 +6,7 @@
 <title>Monitor Técnico, Valuation & Catálogo de ETFs</title>
 <meta property="og:title" content="Monitor Técnico, Valuation & Catálogo de ETFs">
 <meta property="og:site_name" content="Socinvest">
-<meta property="og:description" content="Distância da MM200, P/E vs. histórico, Z-Scores, Quadrantes e Catálogo de ETFs temáticos — dados Bloomberg.">
+<meta property="og:description" content="Distância da MM200, P/E vs. histórico, Z-Scores, Quadrantes e Catálogo de ETFs temáticos — dados Yahoo Finance e Bloomberg.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://pedropeu14.github.io/Socinvest/">
 <meta name="description" content="Monitor Técnico, Valuation & Catálogo de ETFs — Socinvest">
@@ -70,7 +70,7 @@
 <header>
   <div class="brand">Socinvest</div>
   <h1>Monitor Técnico &amp; Valuation</h1>
-  <div class="subtitle">Distância da MM de 200 dias e P/E projetado vs. histórico · linhas tracejadas: média e ±1σ · dados Bloomberg</div>
+  <div class="subtitle">Distância da MM de 200 dias e P/E projetado vs. histórico · linhas tracejadas: média e ±1σ · dados Yahoo Finance (técnico) e Bloomberg (P/E)</div>
 </header>
 <div class="rule"></div>
 <main>
@@ -148,7 +148,7 @@
   </div>
 </details>
 
-<footer>Fonte: Bloomberg (MOV_AVG_200D, PX_LAST, PE_RATIO). Última observação: <span id="lastDate">—</span>. Documento de pesquisa — não constitui recomendação de investimento.</footer>
+<footer>Fonte: Yahoo Finance (fechamentos diários; MM200 calculada sobre a mesma série — atualização automática em dias úteis) e Bloomberg (PE_RATIO). Ouro = futuro COMEX (GC), proxy do spot. Última observação: <span id="lastDate">—</span>. Documento de pesquisa — não constitui recomendação de investimento.</footer>
 
 <script>
 let DATA = {}, PE = {}, CAT = null;

@@ -1,14 +1,18 @@
 name: Atualizar site
 
 on:
+  schedule:
+    # 22:30 UTC em dias úteis = após o fechamento americano; EOD do Yahoo já é final.
+    - cron: "30 22 * * 1-5"
   push:
     branches: [main]
     paths:
-      - "OB_OS.xlsx"
       - "p_e.xlsx"
       - "Catalogo_de_ETFs.xlsx"
       - "index.html"
       - "build.py"
+      - "fetch_yahoo.py"
+      - ".github/workflows/build.yml"
   workflow_dispatch:
 
 permissions:
@@ -36,8 +40,11 @@ jobs:
       - name: Instalar dependências
         run: pip install openpyxl
 
-      - name: Gerar data.json a partir do Excel
-        run: python build.py OB_OS.xlsx p_e.xlsx Catalogo_de_ETFs.xlsx
+      - name: Gerar data.json (Técnico MM200) do Yahoo Finance
+        run: python fetch_yahoo.py
+
+      - name: Gerar pe.json e catalogo.json a partir do Excel
+        run: python build.py --no-tec
 
       - name: Montar pasta do site
         run: |

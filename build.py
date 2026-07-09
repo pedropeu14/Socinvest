@@ -259,7 +259,11 @@ def build_catalog(path=CAT_FILE):
     print(f"catalogo.json gerado: {len(out['etfs'])} ETFs, {len(out['overlap']['rows'])} linhas de overlap")
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "OB_OS.xlsx")
-    build_pe(sys.argv[2] if len(sys.argv) > 2 else PE_FILE)
-    build_catalog(sys.argv[3] if len(sys.argv) > 3 else CAT_FILE)
+    # --no-tec: pula o data.json (aba Técnico), que passou a vir do Yahoo
+    # via fetch_yahoo.py; este script segue gerando pe.json e catalogo.json.
+    args = [a for a in sys.argv[1:] if a != "--no-tec"]
+    if "--no-tec" not in sys.argv:
+        main(args[0] if len(args) > 0 else "OB_OS.xlsx")
+    build_pe(args[1] if len(args) > 1 else PE_FILE)
+    build_catalog(args[2] if len(args) > 2 else CAT_FILE)
 
