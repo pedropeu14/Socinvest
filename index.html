@@ -13,9 +13,16 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root{
+    --bg:#f5f7f9; --card:#ffffff; --ink:#1b2334; --muted:#5b6678;
+    --line:#4f8cff; --mean:#5b6678; --band:#ef5561; --accent:#4f8cff;
+    --border:#dde3ee; --green:#22c07a; --red:#ef5561;
+    --hover:#f3f5f9; --warn:#9a6700;
+    color-scheme:light;
+  }
+  html[data-theme="dark"]{
     --bg:#0b0f17; --card:#121826; --ink:#dbe4f3; --muted:#8593ab;
-    --line:#4f8cff; --mean:#8593ab; --band:#ef5561; --accent:#4f8cff;
-    --border:#232d42; --green:#22c07a; --red:#ef5561;
+    --mean:#8593ab; --border:#232d42;
+    --hover:#1a2234; --warn:#e8b53a;
     color-scheme:dark;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
@@ -37,13 +44,13 @@
   table{width:100%; border-collapse:collapse; font-size:13.5px;}
   th{text-align:left; border-bottom:2px solid var(--border); padding:8px 10px; font-weight:600; cursor:pointer; user-select:none; white-space:nowrap;}
   td{padding:7px 10px; border-bottom:1px solid var(--border);}
-  tr:hover td{background:#1a2234; cursor:pointer;}
+  tr:hover td{background:var(--hover); cursor:pointer;}
   .pos{color:var(--red); font-weight:600;}
   .neg{color:var(--green); font-weight:600;}
   .zbar{display:inline-block; height:9px; border-radius:2px; vertical-align:middle;}
   footer{max-width:1100px; margin:0 auto; padding:0 24px 40px; color:var(--muted); font-size:12px;}
   .note{font-size:12.5px; color:var(--muted); margin-top:10px;}
-  .shortHist{color:#e8b53a; font-size:11px;}
+  .shortHist{color:var(--warn); font-size:11px;}
   details.method{max-width:1100px; margin:0 auto 26px; padding:0 24px;}
   details.method summary{cursor:pointer; font-size:14px; color:var(--accent); font-weight:600; padding:8px 0;}
   details.method .inner{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px 22px; font-size:14px;}
@@ -52,7 +59,7 @@
   .catGrid{display:grid; grid-template-columns:280px 1fr; gap:18px;}
   .catList{border-right:1px solid var(--border); padding-right:14px; max-height:560px; overflow-y:auto;}
   .catItem{padding:9px 10px; cursor:pointer; border-radius:3px; border-bottom:1px solid var(--border);}
-  .catItem:hover{background:#1a2234;}
+  .catItem:hover{background:var(--hover);}
   .catItem.sel{background:var(--accent); color:#fff;}
   .catItem.sel .catSub{color:#dce6f0;}
   .catTick{font-weight:bold; font-size:14px;}
@@ -65,9 +72,19 @@
   .ovCell{text-align:center; min-width:52px;}
   @media (max-width:760px){ .catGrid{grid-template-columns:1fr;} .catList{border-right:none; max-height:240px;} }
   @media (max-width:640px){ .chart-wrap{height:320px;} .chart-wrap.tall{height:420px;} h1{font-size:21px;} }
+  #theme-toggle{position:fixed;top:16px;right:16px;z-index:30;background:var(--card);color:var(--ink);
+    border:1px solid var(--border);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:15px}
+  #theme-toggle:hover{border-color:var(--accent)}
 </style>
+<script>
+  (function(){
+    if(localStorage.getItem('soc:theme')==='dark')
+      document.documentElement.setAttribute('data-theme','dark');
+  })();
+</script>
 </head>
 <body>
+<button id="theme-toggle" title="Alternar tema">🌓</button>
 <header>
   <div class="brand">Socinvest</div>
   <h1>Monitor Técnico &amp; Valuation</h1>
@@ -154,8 +171,9 @@
 <script>
 let DATA = {}, PE = {}, CAT = null;
 const css = getComputedStyle(document.documentElement);
-Chart.defaults.color = '#8593ab';
-Chart.defaults.borderColor = '#232d42';
+const cv = n => css.getPropertyValue(n).trim();
+function applyChartTheme(){ Chart.defaults.color = cv('--muted'); Chart.defaults.borderColor = cv('--border'); }
+applyChartTheme();
 const sel = document.getElementById('tickerSel');
 const peSel = document.getElementById('peSel');
 const rangeSel = document.getElementById('rangeSel');
@@ -247,12 +265,12 @@ function lineConfig(title, dates, vals, mean, sd, yFmt, tooltipFmt, meanLabel='M
       interaction:{mode:'index', intersect:false},
       plugins:{
         legend:{labels:{font:{family:'Segoe UI, Roboto, Arial, sans-serif'}, boxWidth:18}},
-        title:{display:true, text:title, font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:15, weight:'normal'}, color:'#dbe4f3', padding:{bottom:10}},
+        title:{display:true, text:title, font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:15, weight:'normal'}, color:cv('--ink'), padding:{bottom:10}},
         tooltip:{callbacks:{label:tooltipFmt}}
       },
       scales:{
         x:{ ticks:xTicks, grid:{display:false} },
-        y:{ ticks:{font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:11}, callback:yFmt}, grid:{color:'#232d42'} }
+        y:{ ticks:{font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:11}, callback:yFmt}, grid:{color:cv('--border')} }
       }
     }
   };
@@ -308,7 +326,7 @@ const quadLabelPlugin = {
     const {ctx} = c;
     ctx.save();
     ctx.font = '10px Inter, Arial, sans-serif';
-    ctx.fillStyle = '#dbe4f3';
+    ctx.fillStyle = cv('--ink');
     c.data.datasets[0].data.forEach((p,i)=>{
       const meta = c.getDatasetMeta(0).data[i];
       ctx.fillText(p.label, meta.x+6, meta.y-5);
@@ -316,7 +334,7 @@ const quadLabelPlugin = {
     // quadrant captions
     const xs = c.scales.x, ys = c.scales.y;
     ctx.font = 'italic 11px "Segoe UI", Arial, sans-serif';
-    ctx.fillStyle = '#8593ab';
+    ctx.fillStyle = cv('--muted');
     const x0 = xs.getPixelForValue(0), y0 = ys.getPixelForValue(0);
     ctx.textAlign='left';  ctx.fillText('caro & esticado', x0+10, ys.top+14);
     ctx.textAlign='right'; ctx.fillText('barato & esticado', x0-10, ys.top+14);
@@ -347,14 +365,14 @@ function renderQuad(){
       responsive:true, maintainAspectRatio:false, animation:false,
       plugins:{
         legend:{display:false},
-        title:{display:true, text:'Z-Score de Valuation (P/E) × Z-Score Técnico (MM200)', font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:15, weight:'normal'}, color:'#dbe4f3', padding:{bottom:10}},
+        title:{display:true, text:'Z-Score de Valuation (P/E) × Z-Score Técnico (MM200)', font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:15, weight:'normal'}, color:cv('--ink'), padding:{bottom:10}},
         tooltip:{callbacks:{label:c=>{
           const p=c.raw; return p.label+': valuation '+p.x.toFixed(2)+'σ · técnico '+p.y.toFixed(2)+'σ';
         }}}
       },
       scales:{
-        x:{ title:{display:true, text:'← barato · Z-Score P/E · caro →', font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:12}}, grid:{color:ctx=>ctx.tick.value===0?'#66708a':'#232d42', lineWidth:ctx=>ctx.tick.value===0?1.5:1}, ticks:{font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:11}} },
-        y:{ title:{display:true, text:'← deprimido · Z-Score MM200 · esticado →', font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:12}}, grid:{color:ctx=>ctx.tick.value===0?'#66708a':'#232d42', lineWidth:ctx=>ctx.tick.value===0?1.5:1}, ticks:{font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:11}} }
+        x:{ title:{display:true, text:'← barato · Z-Score P/E · caro →', font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:12}}, grid:{color:ctx=>ctx.tick.value===0?cv('--mean'):cv('--border'), lineWidth:ctx=>ctx.tick.value===0?1.5:1}, ticks:{font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:11}} },
+        y:{ title:{display:true, text:'← deprimido · Z-Score MM200 · esticado →', font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:12}}, grid:{color:ctx=>ctx.tick.value===0?cv('--mean'):cv('--border'), lineWidth:ctx=>ctx.tick.value===0?1.5:1}, ticks:{font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:11}} }
       }
     },
     plugins:[quadLabelPlugin]
@@ -484,7 +502,7 @@ function renderCatDetail(){
 function heat(p, max){
   if(p==null) return '';
   const a = Math.min(p/max, 1);
-  return 'background:rgba(79,140,255,'+(0.12+0.55*a).toFixed(2)+');color:'+(a>0.55?'#fff':'#dbe4f3');
+  return 'background:rgba(79,140,255,'+(0.12+0.55*a).toFixed(2)+');color:'+(a>0.55?'#fff':'var(--ink)');
 }
 function renderOverlap(){
   const ov = CAT.overlap;
@@ -499,6 +517,13 @@ function renderOverlap(){
   document.getElementById('ovNote').textContent = 'Intensidade da cor = peso da posição no fundo. Overlap calculado apenas sobre as posições transcritas (top de cada fundo); sobreposições adicionais podem existir nas posições não listadas.';
 }
 document.querySelectorAll('button.tab[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
+document.getElementById('theme-toggle').addEventListener('click',()=>{
+  const dark = document.documentElement.getAttribute('data-theme')==='dark';
+  if(dark){ document.documentElement.removeAttribute('data-theme'); localStorage.setItem('soc:theme','light'); }
+  else { document.documentElement.setAttribute('data-theme','dark'); localStorage.setItem('soc:theme','dark'); }
+  applyChartTheme();
+  if(Object.keys(DATA).length) setView(currentView);  // re-renderiza gráficos com as cores do tema
+});
 sel.addEventListener('change', ()=>renderChart(sel.value));
 peSel.addEventListener('change', ()=>renderPe(peSel.value));
 rangeSel.addEventListener('change', ()=>{ if(currentView==='chart') renderChart(sel.value); if(currentView==='pe') renderPe(peSel.value); });
