@@ -503,10 +503,12 @@ sel.addEventListener('change', ()=>renderChart(sel.value));
 peSel.addEventListener('change', ()=>renderPe(peSel.value));
 rangeSel.addEventListener('change', ()=>{ if(currentView==='chart') renderChart(sel.value); if(currentView==='pe') renderPe(peSel.value); });
 
+// no-cache: revalida com o servidor (ETag) a cada visita — os dados mudam
+// diariamente sob a mesma URL e o cache do navegador mostrava dado velho.
 Promise.all([
-  fetch('data.json').then(r=>r.json()),
-  fetch('pe.json').then(r=>r.ok?r.json():{}).catch(()=>({})),
-  fetch('catalogo.json').then(r=>r.ok?r.json():null).catch(()=>null)
+  fetch('data.json', {cache:'no-cache'}).then(r=>r.json()),
+  fetch('pe.json', {cache:'no-cache'}).then(r=>r.ok?r.json():{}).catch(()=>({})),
+  fetch('catalogo.json', {cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null)
 ]).then(([d, pe, cat])=>{
   DATA = d; PE = pe; CAT = cat;
   if(CAT && CAT.etfs.length) document.getElementById('tabCat').style.display='';
