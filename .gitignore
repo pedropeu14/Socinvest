@@ -1,0 +1,6 @@
+# gerados pelo CI (build.py / fetch_yahoo.py / fetch_pe.py) — não versionar
+pe.json
+pe_fwd.json
+catalogo.json
+__pycache__/
+refresh_pe.log

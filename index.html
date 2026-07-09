@@ -70,6 +70,16 @@
   .ovWrap table{font-size:12px;}
   .ovWrap th{position:sticky; top:0; background:var(--card); z-index:1; font-size:11px;}
   .ovCell{text-align:center; min-width:52px;}
+  details.tabHelp{margin:0 0 14px; border:1px solid var(--border); border-radius:8px; background:var(--hover);}
+  details.tabHelp summary{cursor:pointer; padding:9px 12px; font-size:13.5px; color:var(--accent); font-weight:600; user-select:none; list-style-position:inside;}
+  details.tabHelp .hbody{padding:2px 14px 12px; font-size:13.5px; line-height:1.55;}
+  details.tabHelp .hbody p{margin:8px 0;}
+  details.tabHelp .hbody h4{margin:12px 0 4px; font-size:13px; color:var(--ink);}
+  details.tabHelp .hbody ul{margin:6px 0 6px 20px;}
+  table.gloss{margin:8px 0; font-size:12.5px; width:100%;}
+  table.gloss td{padding:5px 8px; vertical-align:top; border-bottom:1px solid var(--border);}
+  table.gloss td:first-child{white-space:nowrap; font-weight:600; color:var(--ink);}
+  .caveat{color:var(--muted); font-style:italic; font-size:12.5px; border-top:1px solid var(--border); padding-top:8px; margin-top:10px;}
   @media (max-width:760px){ .catGrid{grid-template-columns:1fr;} .catList{border-right:none; max-height:240px;} }
   @media (max-width:640px){ .chart-wrap{height:320px;} .chart-wrap.tall{height:420px;} h1{font-size:21px;} }
   #theme-toggle{position:fixed;top:16px;right:16px;z-index:30;background:var(--card);color:var(--ink);
@@ -110,12 +120,54 @@
   </div>
 
   <div class="card view" id="view-chart">
+    <details class="tabHelp" data-help="chart">
+      <summary>💡 O que estou vendo neste gráfico?</summary>
+      <div class="hbody">
+        <p>Para cada dia, dividimos o <strong>preço de fechamento pela média móvel de 200 pregões</strong> (MM200).
+        Um valor de 1,00 = preço exatamente sobre a média; 1,10 = 10% acima; 0,90 = 10% abaixo. O preço em si não é
+        comparável ao longo do tempo (cresce, sofre splits); o <em>ratio</em> é estacionário — dá para comparar 2012
+        com hoje e tirar estatística honesta disso.</p>
+        <h4>As linhas</h4>
+        <table class="gloss">
+          <tr><td>Linha azul</td><td>O ratio preço/MM200, dia a dia.</td></tr>
+          <tr><td>Tracejada cinza</td><td>Média do ratio <strong>no período exibido</strong> — o "normal" daquele ativo.</td></tr>
+          <tr><td>Tracejadas vermelhas</td><td>Média ±1 desvio-padrão. Papéis voláteis têm bandas largas; defensivos, estreitas. Mudou a janela (10a/5a/3a/1a), média e bandas se recalibram.</td></tr>
+        </table>
+        <h4>A barra de números</h4>
+        <table class="gloss">
+          <tr><td>Último</td><td>Ratio no fechamento mais recente, com a distância % até a MM200.</td></tr>
+          <tr><td>Z-Score</td><td>(último − média) ÷ desvio-padrão: quantos desvios o ativo está do próprio normal. +2 = esticado como raramente fica; −2 = deprimido como raramente fica.</td></tr>
+        </table>
+        <p class="caveat">Acima de +1σ = esticado (sobrecomprado); abaixo de −1σ = deprimido (sobrevendido). Mas ativos
+        ficam <em>meses</em> fora das bandas em regimes de momentum forte, e a reversão à média não tem prazo nem garantia —
+        isto é uma régua de contexto, não um sinal de compra/venda. Dados: Yahoo Finance, fechamento diário, atualização
+        automática em dias úteis após o fechamento americano. Ouro = futuro COMEX (GC), proxy do spot.</p>
+      </div>
+    </details>
     <div class="chart-wrap"><canvas id="chart"></canvas></div>
     <div class="stats" id="statsRow"></div>
     <div class="note">Acima de +1σ: esticado vs. tendência (sobrecomprado) · Abaixo de −1σ: deprimido vs. tendência (sobrevendido). Média e σ calculados sobre o período exibido.</div>
   </div>
 
   <div class="card view" id="view-table" style="display:none">
+    <details class="tabHelp" data-help="table">
+      <summary>💡 Como ler esta tabela?</summary>
+      <div class="hbody">
+        <p>Todos os ativos do monitor na <strong>mesma régua</strong>, ordenáveis por qualquer coluna (clique no
+        cabeçalho; de novo para inverter). Clicar numa linha abre o gráfico técnico do ativo.</p>
+        <h4>Cada coluna</h4>
+        <table class="gloss">
+          <tr><td>Preço/MM200</td><td>O ratio atual. 1,05 = preço 5% acima da média de 200 pregões.</td></tr>
+          <tr><td>Distância</td><td>O mesmo, em %: ratio − 1.</td></tr>
+          <tr><td>Z-Score</td><td>(ratio atual − média histórica) ÷ desvio-padrão histórico, sempre sobre o <strong>histórico completo</strong> do ativo (não a janela do gráfico). A barra é proporcional ao |z| da tabela.</td></tr>
+          <tr><td>Posição</td><td>Acima de +1σ (esticado) · dentro da banda · abaixo de −1σ (deprimido).</td></tr>
+          <tr><td>Obs.</td><td>Nº de pregões no histórico. Com poucas observações (ativo novo), média e desvio são régua fraca — desconfie do z.</td></tr>
+        </table>
+        <p class="caveat">Vermelho = esticado, verde = deprimido — cores de <em>atenção estatística</em>, não de
+        recomendação: esticado pode seguir subindo, deprimido pode seguir caindo. O z compara cada ativo com o
+        próprio passado; z = +2 em dois ativos diferentes significa "raro para cada um", não que sejam comparáveis entre si.</p>
+      </div>
+    </details>
     <table id="ovTable">
       <thead><tr>
         <th data-k="ticker">Ativo</th>
@@ -131,16 +183,88 @@
   </div>
 
   <div class="card view" id="view-pe" style="display:none">
+    <details class="tabHelp" data-help="pe">
+      <summary>💡 De onde vem este P/E e como interpretá-lo?</summary>
+      <div class="hbody">
+        <p><strong>P/E trailing = preço ÷ lucro por ação dos últimos 12 meses.</strong> Aqui ele é plotado contra o
+        próprio histórico do ativo: a pergunta não é "o múltiplo é alto?", é "é alto <em>para ele</em>?".</p>
+        <p>O botão <strong>Forward 12m</strong> troca para o <strong>P/E projetado</strong>: preço ÷ lucro estimado
+        pelo consenso de analistas para os próximos 12 meses. Trailing conta o que a empresa <em>entregou</em>;
+        forward, o que o mercado <em>espera</em> — forward abaixo do trailing embute crescimento de lucro. A régua
+        (mediana e bandas do próprio histórico) é a mesma nos dois modos, mas o histórico forward é mais curto para
+        várias empresas e estimativas de consenso erram — especialmente em viradas de ciclo. Alguns ativos só existem
+        num dos modos (o aviso na barra de stats indica).</p>
+        <h4>As linhas (estatística robusta, de propósito)</h4>
+        <p>O trailing P/E explode quando o lucro colapsa para perto de zero (ciclos de memória, energia em 2020,
+        growth pré-lucratividade). Por isso a linha central é a <strong>mediana</strong> e as bandas usam os
+        <strong>percentis 16/84</strong> — equivalentes a ±1σ numa distribuição normal, mas imunes aos picos.
+        Picos extremos são cortados do gráfico (a nota avisa quando isso acontece). Média e bandas se recalibram
+        com a janela escolhida.</p>
+        <h4>De onde vêm os números (a barra de stats mostra por ativo)</h4>
+        <p>A base é a <strong>série Bloomberg</strong> (semanal, desde 2002, EPS antes de itens extraordinários —
+        a mesma metodologia para todos os ativos). Entre um export e outro, cada série é <strong>estendida
+        diariamente pelo preço</strong>: como o lucro trailing só muda quando sai resultado novo, o EPS implícito do
+        último ponto Bloomberg é mantido e o P/E passa a andar com o fechamento do Yahoo — "EPS de &lt;data&gt;" na
+        barra de stats diz quando foi essa âncora.</p>
+        <p>A aproximação é exata no dia da âncora e <strong>deriva devagar</strong> conforme as empresas vão
+        reportando: se o lucro subiu desde o último export, o P/E mostrado fica um pouco <em>acima</em> do real
+        (e vice-versa). Um export novo da planilha re-ancora tudo — vale fazer a cada temporada de resultados.
+        Exceção: SX7E (Euro Stoxx Banks) não tem preço no Yahoo e fica parado no último export.</p>
+        <p class="caveat">P/E fica indisponível quando o lucro TTM é negativo — o histórico de algumas empresas começa
+        no primeiro ano lucrativo. <span class="shortHist">⚠ histórico curto: bandas pouco confiáveis.</span>
+        Múltiplo alto não é sentença de queda, nem baixo é garantia de barganha: o mercado às vezes está certo em
+        pagar mais (ou menos) do que pagava.</p>
+      </div>
+    </details>
+    <div class="controls" style="margin:0 0 10px">
+      <button class="tab active" id="peModeTrail">Trailing 12m</button>
+      <button class="tab" id="peModeFwd" style="display:none">Forward 12m</button>
+    </div>
     <div class="chart-wrap"><canvas id="peChart"></canvas></div>
     <div class="stats" id="peStatsRow"></div>
     <div class="note">P/E trailing (12m) contra sua mediana histórica e ±1σ robusto (percentis 16/84), calculados sobre o período exibido. P/E indisponível quando o lucro é negativo. <span class="shortHist">⚠ histórico curto: bandas pouco confiáveis.</span></div>
   </div>
 
   <div class="card view" id="view-quad" style="display:none">
+    <details class="tabHelp" data-help="quad">
+      <summary>💡 O que os quadrantes separam?</summary>
+      <div class="hbody">
+        <p>Cada ponto é um ativo posicionado por dois Z-Scores calculados sobre o <strong>histórico completo</strong>:
+        <strong>eixo X</strong> = valuation (<strong>P/E forward</strong>, o consenso 12m à frente, vs. a própria
+        mediana histórica — a régua coerente com uma decisão para frente) · <strong>eixo Y</strong> = técnico
+        (preço vs. MM200, vs. o próprio histórico). O cruzamento separa <em>o que está movendo o preço</em>:</p>
+        <table class="gloss">
+          <tr><td>Caro &amp; esticado</td><td>(direita, cima — vermelho) Momentum com múltiplo cheio: o re-rating já aconteceu. Zona de cautela máxima.</td></tr>
+          <tr><td>Barato &amp; esticado</td><td>(esquerda, cima) Subiu por <em>lucros</em>, não por re-rating — o múltiplo continua normal apesar da alta.</td></tr>
+          <tr><td>Caro &amp; deprimido</td><td>(direita, baixo) Preço caiu mas o lucro caiu mais — a "queda" não barateou nada.</td></tr>
+          <tr><td>Barato &amp; deprimido</td><td>(esquerda, baixo — verde) Historicamente concentrou as oportunidades — e também os maiores estresses. É onde mais se exige análise do negócio.</td></tr>
+        </table>
+        <p>Só aparecem ativos presentes nos dois conjuntos de dados; índices casam com seus ETFs
+        (NDX↔QQQ, SOX↔SOXX, SX7E↔BNK, setores↔XLE/XLF).</p>
+        <p class="caveat">O eixo técnico é diário (Yahoo); o de P/E vem da série Bloomberg estendida por preço, com o
+        EPS congelado no último export (veja a ajuda da aba Valuation) — logo depois de uma temporada de resultados,
+        o eixo X pode estar levemente defasado até a planilha ser re-ancorada. Pontos além de ±4σ são desenhados na
+        borda com o valor real indicado (→). ⚠ = histórico de P/E curto.</p>
+      </div>
+    </details>
     <div class="chart-wrap tall"><canvas id="quadChart"></canvas></div>
-    <div class="note">Eixo X: Z-Score de valuation (P/E vs. média histórica) · Eixo Y: Z-Score técnico (preço vs. MM200). Calculados sobre o histórico completo de cada ativo. Apenas ativos presentes nos dois conjuntos de dados. Ativos com histórico de P/E curto marcados com ⚠.</div>
+    <div class="note">Eixo X: Z-Score de valuation (P/E forward vs. mediana histórica do próprio consenso) · Eixo Y: Z-Score técnico (preço vs. MM200). Calculados sobre o histórico completo de cada ativo. Apenas ativos presentes nos dois conjuntos de dados (sem série forward = fora do gráfico). Ativos com histórico de P/E curto marcados com ⚠.</div>
   </div>
   <div class="card view" id="view-cat" style="display:none">
+    <details class="tabHelp" data-help="cat">
+      <summary>💡 Como usar o catálogo?</summary>
+      <div class="hbody">
+        <p><strong>Fichas:</strong> um resumo por ETF temático — emissor, categoria, domicílio, moeda,
+        <strong>TER</strong> (custo total anual: 0,35% = US$ 35 por US$ 10.000/ano) e as principais posições com peso.
+        O selo <em>"no monitor"</em> indica que o ETF também está na aba técnica — o botão pula direto para o gráfico.</p>
+        <p><strong>Matriz de Overlap:</strong> linhas = empresas, colunas = ETFs; a célula mostra o peso da empresa
+        naquele fundo (cor mais forte = peso maior). A coluna <strong>Nº</strong> conta em quantos fundos a empresa
+        aparece — negrito quando &gt;1. Serve para responder: "se eu comprar estes dois ETFs, estou comprando a mesma
+        coisa duas vezes?"</p>
+        <p class="caveat">Só as posições principais de cada fundo foram transcritas — o overlap real pode ser maior do
+        que o mostrado, nunca menor. Pesos são da data da transcrição da ficha, não atualizados diariamente.</p>
+      </div>
+    </details>
     <div class="controls" style="margin:0 0 14px">
       <button class="tab active" id="catTabFichas">Fichas</button>
       <button class="tab" id="catTabOverlap">Matriz de Overlap</button>
@@ -160,16 +284,17 @@
   <summary>Metodologia — o que estes indicadores medem</summary>
   <div class="inner">
     <p><b>Distância da MM200.</b> Para cada dia, dividimos o preço de fechamento pela média móvel de 200 dias. Um valor de 1,00 significa preço sobre a média; 1,10, preço 10% acima; 0,90, 10% abaixo. Diferentemente do preço, o ratio é estacionário e comparável ao longo do tempo. As linhas tracejadas marcam a média histórica do ratio e ±1 desvio-padrão — uma régua estatística do que é "normal" para cada ativo: papéis voláteis têm bandas largas, defensivos têm bandas estreitas. A comparação relevante é sempre do ativo com o próprio histórico.</p>
-    <p><b>Valuation (P/E).</b> O P/E trailing (lucro dos últimos 12 meses) é plotado contra seu nível histórico. Como o trailing P/E dispara quando o lucro colapsa para perto de zero (ciclos de memória, energia em 2020, growth pré-lucratividade), usamos estatística robusta: a linha central é a <i>mediana</i> histórica e as bandas usam os percentis 16/84 — equivalentes a ±1σ numa distribuição normal, mas imunes aos picos extremos. A leitura é análoga: acima de +1σ, múltiplo historicamente elevado; abaixo de −1σ, historicamente descontado. Atenção: o P/E fica indisponível quando o lucro é negativo, então o histórico de algumas empresas começa apenas no primeiro ano lucrativo.</p>
+    <p><b>Valuation (P/E).</b> O P/E trailing (lucro dos últimos 12 meses) é plotado contra seu nível histórico. Como o trailing P/E dispara quando o lucro colapsa para perto de zero (ciclos de memória, energia em 2020, growth pré-lucratividade), usamos estatística robusta: a linha central é a <i>mediana</i> histórica e as bandas usam os percentis 16/84 — equivalentes a ±1σ numa distribuição normal, mas imunes aos picos extremos. A leitura é análoga: acima de +1σ, múltiplo historicamente elevado; abaixo de −1σ, historicamente descontado. Atenção: o P/E fica indisponível quando o lucro é negativo, então o histórico de algumas empresas começa apenas no primeiro ano lucrativo. A série base é a da Bloomberg (semanal, desde 2002); entre exports, cada ativo é estendido diariamente pelo preço com o EPS implícito do último ponto congelado — exato na âncora, derivando devagar até um novo export re-ancorar (SX7E, sem preço no Yahoo, fica sem extensão).</p>
     <p><b>Quadrantes.</b> O cruzamento dos dois Z-Scores separa o que move o preço: um ativo esticado no técnico mas com múltiplo normal subiu por lucros, não por re-rating; esticado nos dois eixos combina momentum com valuation cheio (cautela máxima); deprimido nos dois historicamente concentrou oportunidades — e os maiores estresses.</p>
     <p><b>Limitações.</b> Os indicadores medem posição relativa ao próprio histórico, não valor intrínseco. Ativos podem permanecer fora das bandas por meses em regimes de momentum forte, e a reversão à média não tem prazo nem garantia. Ao mudar a janela de tempo, médias e bandas se recalibram. Ferramenta de contexto dentro de um processo de decisão — não sinal isolado de compra ou venda.</p>
   </div>
 </details>
 
-<footer>Fonte: Yahoo Finance (fechamentos diários; MM200 calculada sobre a mesma série — atualização automática em dias úteis) e Bloomberg (PE_RATIO). Ouro = futuro COMEX (GC), proxy do spot. Última observação: <span id="lastDate">—</span>. Documento de pesquisa — não constitui recomendação de investimento.</footer>
+<footer>Fontes: Yahoo Finance (fechamentos diários; MM200 calculada sobre a mesma série) · Bloomberg (PE_RATIO histórico, estendido diariamente por preço com EPS congelado do último export). Atualização automática em dias úteis após o fechamento americano. Ouro = futuro COMEX (GC), proxy do spot. Última observação: <span id="lastDate">—</span>. Documento de pesquisa — não constitui recomendação de investimento.</footer>
 
 <script>
-let DATA = {}, PE = {}, CAT = null;
+let DATA = {}, PE = {}, PEF = {}, CAT = null;
+let peMode = 'trail';   // 'trail' = P/E 12m realizado · 'fwd' = consenso 12m à frente
 const css = getComputedStyle(document.documentElement);
 const cv = n => css.getPropertyValue(n).trim();
 function applyChartTheme(){ Chart.defaults.color = cv('--muted'); Chart.defaults.borderColor = cv('--border'); }
@@ -197,10 +322,11 @@ const NAMES = {
   'JBL':'Jabil','VRT':'Vertiv','MELI':'MercadoLibre','VALE':'Vale (ADR)','BRK/B':'Berkshire Hathaway',
   'ITUB':'Itaú Unibanco (ADR)','PBR':'Petrobras (ADR)','PLTR':'Palantir','BNT':'Brookfield Wealth Solutions',
   'BOTZ':'Global X Robotics & AI','DVY':'iShares Select Dividend','EEM':'iShares MSCI Emerging Markets',
-  'EMXC':'iShares MSCI EM ex-China','DWX':'SPDR S&P International Dividend','ARA':'Aclara Resources'
+  'EMXC':'iShares MSCI EM ex-China','DWX':'SPDR S&P International Dividend','ARA':'Aclara Resources',
+  '2330':'TSMC (Taiwan)','VALE3':'Vale (B3)','BRK/A':'Berkshire Hathaway (classe A)'
 };
 // equivalências PE (índices) <-> técnico (ETFs) para sincronizar abas e cruzar quadrantes
-const PE2TEC = {'NDX':'QQQ','SOX':'SOXX','S5ENRS':'XLE','S5FINL':'XLF','SX7E':'BNK'};
+const PE2TEC = {'NDX':'QQQ','SOX':'SOXX','S5ENRS':'XLE','S5FINL':'XLF','SX7E':'BNK','2330':'TSM','VALE3':'VALE','BRK/A':'BRK/B'};
 const TEC2PE = Object.fromEntries(Object.entries(PE2TEC).map(([a,b])=>[b,a]));
 function dispName(t){ const s=shortName(t); return NAMES[s] ? s+' — '+NAMES[s] : t; }
 function titleName(t){ const s=shortName(t); return NAMES[s] ? NAMES[s]+' ('+t+')' : t; }
@@ -297,7 +423,21 @@ function renderChart(key){
 }
 
 function renderPe(key){
-  const d = PE[key];
+  const src = peMode==='fwd' ? PEF : PE;
+  let d = src[key];
+  if(!d && PE[key]){
+    // mesmo ativo pode estar sob linha diferente no outro modo (2330 TT ↔ TSM US)
+    const s = shortName(PE[key].ticker), want = PE2TEC[s] || s;
+    const k2 = Object.keys(src).find(k=>shortName(src[k].ticker)===s) ||
+               Object.keys(src).find(k=>shortName(src[k].ticker)===want);
+    if(k2) d = src[k2];
+  }
+  if(!d){
+    if(peChart){ peChart.destroy(); peChart = null; }
+    document.getElementById('peStatsRow').innerHTML =
+      '<span>Sem série '+(peMode==='fwd'?'Forward':'Trailing')+' para este ativo no export atual.</span>';
+    return;
+  }
   const w = windowedRobust(d);
   const last = w.vals[w.vals.length-1];
   const z = w.sd>0 ? (last-w.mean)/w.sd : 0;
@@ -306,7 +446,7 @@ function renderPe(key){
   const clipped = maxVal > cap;
   if(peChart) peChart.destroy();
   peChart = new Chart(document.getElementById('peChart'),
-    lineConfig(titleName(d.ticker)+' — P/E (12m trailing)', w.dates, w.vals, w.mean, w.sd,
+    lineConfig(titleName(d.ticker)+(peMode==='fwd' ? ' — P/E forward (consenso 12m à frente)' : ' — P/E (12m trailing)'), w.dates, w.vals, w.mean, w.sd,
       v=>v.toFixed(1)+'x',
       c=>c.dataset.label+': '+c.parsed.y.toFixed(2)+'x',
       'Mediana', clipped ? cap : null));
@@ -317,6 +457,8 @@ function renderPe(key){
     '<span>Mediana: <b>'+w.mean.toFixed(1)+'x</b></span>'+
     '<span>±1σ (P16/P84): <b>'+(w.mean-w.sd).toFixed(1)+'x / '+(w.mean+w.sd).toFixed(1)+'x</b></span>'+
     '<span>Z-Score: <b>'+z.toFixed(2)+'</b></span>'+
+    '<span>Fonte: <b>'+(d.src==='computed' ? 'Yahoo + SEC (EPS GAAP)'
+      : (d.extendedFrom ? 'Bloomberg + preço diário (EPS de '+d.extendedFrom+')' : 'Bloomberg'))+'</b></span>'+
     '<span>Período: <b>'+w.dates[0].slice(0,10)+' → '+w.dates[w.dates.length-1].slice(0,10)+'</b>'+warn+clipNote+'</span>';
 }
 
@@ -329,7 +471,11 @@ const quadLabelPlugin = {
     ctx.fillStyle = cv('--ink');
     c.data.datasets[0].data.forEach((p,i)=>{
       const meta = c.getDatasetMeta(0).data[i];
-      ctx.fillText(p.label, meta.x+6, meta.y-5);
+      const w = ctx.measureText(p.label).width;
+      // rótulo à esquerda do ponto quando não cabe até a borda direita
+      ctx.textAlign = 'left';
+      if(meta.x + 6 + w > c.chartArea.right) ctx.fillText(p.label, meta.x-6-w, meta.y-5);
+      else ctx.fillText(p.label, meta.x+6, meta.y-5);
     });
     // quadrant captions
     const xs = c.scales.x, ys = c.scales.y;
@@ -348,13 +494,20 @@ function renderQuad(){
   const points = [];
   const tecByShort = {};
   Object.values(DATA).forEach(d=>{ tecByShort[shortName(d.ticker)] = d; });
-  Object.values(PE).forEach(p=>{
+  const CAP = 4; // um outlier de P/E esmagaria o resto do gráfico
+  // eixo de valuation = P/E FORWARD (régua coerente com decisão à frente);
+  // trailing só como fallback se o export não tiver a aba Forward
+  const srcPe = Object.keys(PEF).length ? PEF : PE;
+  Object.values(srcPe).forEach(p=>{
     const s = shortName(p.ticker);
     const d = tecByShort[s] || tecByShort[PE2TEC[s]];
     if(!d) return;
     const zt = d.sd>0 ? (d.last-d.mean)/d.sd : 0;
     const zv = p.sd>0 ? (p.last-p.mean)/p.sd : 0;
-    points.push({x:zv, y:zt, label:shortName(d.ticker) + (p.n<104?' ⚠':'')});
+    const cx = Math.max(-CAP, Math.min(CAP, zv)), cy = Math.max(-CAP, Math.min(CAP, zt));
+    const clipped = cx!==zv || cy!==zt;
+    points.push({x:cx, y:cy, zx:zv, zy:zt,
+      label:shortName(d.ticker) + (clipped?' →'+(Math.abs(zv)>CAP?zv:zt).toFixed(0)+'σ':'') + (p.n<104?' ⚠':'')});
   });
   if(quadChart) quadChart.destroy();
   quadChart = new Chart(document.getElementById('quadChart'), {
@@ -365,13 +518,13 @@ function renderQuad(){
       responsive:true, maintainAspectRatio:false, animation:false,
       plugins:{
         legend:{display:false},
-        title:{display:true, text:'Z-Score de Valuation (P/E) × Z-Score Técnico (MM200)', font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:15, weight:'normal'}, color:cv('--ink'), padding:{bottom:10}},
+        title:{display:true, text:'Z-Score de Valuation (P/E forward) × Z-Score Técnico (MM200)', font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:15, weight:'normal'}, color:cv('--ink'), padding:{bottom:10}},
         tooltip:{callbacks:{label:c=>{
-          const p=c.raw; return p.label+': valuation '+p.x.toFixed(2)+'σ · técnico '+p.y.toFixed(2)+'σ';
+          const p=c.raw; return p.label+': valuation '+p.zx.toFixed(2)+'σ · técnico '+p.zy.toFixed(2)+'σ';
         }}}
       },
       scales:{
-        x:{ title:{display:true, text:'← barato · Z-Score P/E · caro →', font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:12}}, grid:{color:ctx=>ctx.tick.value===0?cv('--mean'):cv('--border'), lineWidth:ctx=>ctx.tick.value===0?1.5:1}, ticks:{font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:11}} },
+        x:{ title:{display:true, text:'← barato · Z-Score P/E forward · caro →', font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:12}}, grid:{color:ctx=>ctx.tick.value===0?cv('--mean'):cv('--border'), lineWidth:ctx=>ctx.tick.value===0?1.5:1}, ticks:{font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:11}} },
         y:{ title:{display:true, text:'← deprimido · Z-Score MM200 · esticado →', font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:12}}, grid:{color:ctx=>ctx.tick.value===0?cv('--mean'):cv('--border'), lineWidth:ctx=>ctx.tick.value===0?1.5:1}, ticks:{font:{family:'Segoe UI, Roboto, Arial, sans-serif', size:11}} }
       }
     },
@@ -516,6 +669,14 @@ function renderOverlap(){
   document.getElementById('ovMatrix').innerHTML = h;
   document.getElementById('ovNote').textContent = 'Intensidade da cor = peso da posição no fundo. Overlap calculado apenas sobre as posições transcritas (top de cada fundo); sobreposições adicionais podem existir nas posições não listadas.';
 }
+// painéis de ajuda 💡: aberto por padrão para o visitante novo; o estado
+// (aberto/fechado) fica lembrado por aba no localStorage do navegador.
+document.querySelectorAll('details.tabHelp').forEach(d=>{
+  const k = 'helpOpen:' + d.dataset.help;
+  const saved = localStorage.getItem(k);
+  d.open = saved === null ? true : saved === '1';
+  d.addEventListener('toggle', ()=>localStorage.setItem(k, d.open ? '1' : '0'));
+});
 document.querySelectorAll('button.tab[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
 document.getElementById('theme-toggle').addEventListener('click',()=>{
   const dark = document.documentElement.getAttribute('data-theme')==='dark';
@@ -526,6 +687,14 @@ document.getElementById('theme-toggle').addEventListener('click',()=>{
 });
 sel.addEventListener('change', ()=>renderChart(sel.value));
 peSel.addEventListener('change', ()=>renderPe(peSel.value));
+function setPeMode(m){
+  peMode = m;
+  document.getElementById('peModeTrail').classList.toggle('active', m==='trail');
+  document.getElementById('peModeFwd').classList.toggle('active', m==='fwd');
+  renderPe(peSel.value);
+}
+document.getElementById('peModeTrail').addEventListener('click', ()=>setPeMode('trail'));
+document.getElementById('peModeFwd').addEventListener('click', ()=>setPeMode('fwd'));
 rangeSel.addEventListener('change', ()=>{ if(currentView==='chart') renderChart(sel.value); if(currentView==='pe') renderPe(peSel.value); });
 
 // no-cache: revalida com o servidor (ETag) a cada visita — os dados mudam
@@ -533,9 +702,11 @@ rangeSel.addEventListener('change', ()=>{ if(currentView==='chart') renderChart(
 Promise.all([
   fetch('data.json', {cache:'no-cache'}).then(r=>r.json()),
   fetch('pe.json', {cache:'no-cache'}).then(r=>r.ok?r.json():{}).catch(()=>({})),
-  fetch('catalogo.json', {cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null)
-]).then(([d, pe, cat])=>{
-  DATA = d; PE = pe; CAT = cat;
+  fetch('catalogo.json', {cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null),
+  fetch('pe_fwd.json', {cache:'no-cache'}).then(r=>r.ok?r.json():{}).catch(()=>({}))
+]).then(([d, pe, cat, pef])=>{
+  DATA = d; PE = pe; CAT = cat; PEF = pef;
+  if(Object.keys(PEF).length) document.getElementById('peModeFwd').style.display='';
   if(CAT && CAT.etfs.length) document.getElementById('tabCat').style.display='';
   const keys = Object.keys(DATA).sort((a,b)=>dispName(DATA[a].ticker).localeCompare(dispName(DATA[b].ticker)));
   keys.forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=dispName(DATA[k].ticker); sel.appendChild(o); });

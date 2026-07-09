@@ -12,6 +12,7 @@ on:
       - "index.html"
       - "build.py"
       - "fetch_yahoo.py"
+      - "fetch_pe.py"
       - ".github/workflows/build.yml"
   workflow_dispatch:
 
@@ -46,11 +47,15 @@ jobs:
       - name: Gerar pe.json e catalogo.json a partir do Excel
         run: python build.py --no-tec
 
+      - name: Estender P/E até hoje (série Bloomberg + preço Yahoo)
+        run: python fetch_pe.py
+
       - name: Montar pasta do site
         run: |
           mkdir -p _site
           cp index.html data.json _site/
           cp pe.json _site/ 2>/dev/null || true
+          cp pe_fwd.json _site/ 2>/dev/null || true
           cp catalogo.json _site/ 2>/dev/null || true
 
       - uses: actions/upload-pages-artifact@v3

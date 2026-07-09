@@ -112,12 +112,23 @@ PE_FILE = "p_e.xlsx"
 MIN_OBS_PE = 30
 
 def build_pe(path=PE_FILE):
+    """pe.json (Trailing) + pe_fwd.json (Forward, se a aba existir)."""
     import os
     if not os.path.exists(path):
         print(f"{path} não encontrado — pe.json não gerado (aba Valuation ficará oculta)")
         return
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    sh = wb[wb.sheetnames[0]]
+    # exports novos têm abas "Forward PE" e "Trailing PE"; a régua principal do
+    # site é a trailing — escolhe pelo nome, com fallback p/ a 1ª aba (formato antigo)
+    trailing = next((n for n in wb.sheetnames if "trailing" in n.lower()), wb.sheetnames[0])
+    _build_pe_sheet(wb, trailing, "pe.json")
+    forward = next((n for n in wb.sheetnames if "forward" in n.lower()), None)
+    if forward and forward != trailing:
+        _build_pe_sheet(wb, forward, "pe_fwd.json")
+
+
+def _build_pe_sheet(wb, sheet, outfile):
+    sh = wb[sheet]
     rows = [list(r) for r in sh.iter_rows(values_only=True)]
     # localizar linha de tickers: a que tem mais células contendo Equity/Index/Curncy
     hdr_i, hdr_score = None, 0
@@ -144,7 +155,7 @@ def build_pe(path=PE_FILE):
                 series.append((datesA[i], v))
         if len(series) < MIN_OBS_PE:
             if series or any(isinstance(r[j] if j < len(r) else None, str) for r in rows[hdr_i+1:]):
-                print(f"P/E: '{t}' ignorado ({len(series)} obs — insuficiente)", file=sys.stderr)
+                print(f"{sheet}: '{t}' ignorado ({len(series)} obs — insuficiente)", file=sys.stderr)
             continue
         series.sort()
         vals = [v for _, v in series]
@@ -167,10 +178,10 @@ def build_pe(path=PE_FILE):
             "n": len(vals),
             "robust": True,
         }
-        print(f"P/E  {t:22s} {len(vals):>5d} obs  {series[0][0]} → {series[-1][0]}")
-    with open("pe.json", "w") as f:
+        print(f"{sheet:12s} {t:22s} {len(vals):>5d} obs  {series[0][0]} → {series[-1][0]}")
+    with open(outfile, "w") as f:
         json.dump(out, f)
-    print(f"pe.json gerado: {len(out)} ativos")
+    print(f"{outfile} gerado: {len(out)} ativos ({sheet})")
 
 
 
