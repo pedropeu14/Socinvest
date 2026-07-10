@@ -229,7 +229,9 @@
     <details class="tabHelp" data-help="quad">
       <summary>💡 O que os quadrantes separam?</summary>
       <div class="hbody">
-        <p>Cada ponto é um ativo posicionado por dois Z-Scores calculados sobre o <strong>histórico completo</strong>:
+        <p>Cada ponto é um ativo posicionado por dois Z-Scores calculados sobre a <strong>janela do seletor de
+        período</strong> (padrão: histórico completo — janelas curtas medem "vs. o regime atual", janelas longas
+        "vs. a história toda"; um papel que re-ratou estruturalmente muda de quadrante conforme a régua):
         <strong>eixo X</strong> = valuation (<strong>P/E forward</strong>, o consenso 12m à frente, vs. a própria
         mediana histórica — a régua coerente com uma decisão para frente) · <strong>eixo Y</strong> = técnico
         (preço vs. MM200, vs. o próprio histórico). O cruzamento separa <em>o que está movendo o preço</em>:</p>
@@ -248,7 +250,7 @@
       </div>
     </details>
     <div class="chart-wrap tall"><canvas id="quadChart"></canvas></div>
-    <div class="note">Eixo X: Z-Score de valuation (P/E forward vs. mediana histórica do próprio consenso) · Eixo Y: Z-Score técnico (preço vs. MM200). Calculados sobre o histórico completo de cada ativo. Apenas ativos presentes nos dois conjuntos de dados (sem série forward = fora do gráfico). Ativos com histórico de P/E curto marcados com ⚠.</div>
+    <div class="note">Eixo X: Z-Score de valuation (P/E forward vs. mediana do próprio consenso, percentis 16/84) · Eixo Y: Z-Score técnico (preço vs. MM200, média/desvio). Calculados sobre a <strong>janela do seletor de período</strong> acima (padrão: histórico completo). Apenas ativos presentes nos dois conjuntos de dados (sem série forward = fora do gráfico). ⚠ = menos de 52 pontos de P/E na janela — régua pouco confiável.</div>
   </div>
   <div class="card view" id="view-cat" style="display:none">
     <details class="tabHelp" data-help="cat">
@@ -490,11 +492,33 @@ const quadLabelPlugin = {
   }
 };
 
+// estatística de uma série na janela do rangeSel (yrs='all' => série toda).
+// robust=true usa mediana ± (P84−P16)/2 (convenção do P/E); senão média/desvio.
+function winStats(dates, ratio, yrs, robust){
+  let vals = ratio;
+  if(yrs !== 'all' && dates && dates.length){
+    const lastD = new Date(dates[dates.length-1]);
+    lastD.setFullYear(lastD.getFullYear() - (+yrs));
+    const cut = lastD.toISOString().slice(0,10);
+    vals = ratio.filter((_,i)=> dates[i] >= cut);
+  }
+  vals = (vals||[]).filter(v=>v!=null);
+  if(vals.length < 8) return null;
+  if(robust){
+    const sv=[...vals].sort((a,b)=>a-b);
+    const pct=p=>{const k=(sv.length-1)*p, f=Math.floor(k); return sv[f]+(sv[Math.min(f+1,sv.length-1)]-sv[f])*(k-f);};
+    return {mean:pct(0.5), sd:(pct(0.84)-pct(0.16))/2, n:vals.length};
+  }
+  const m = vals.reduce((a,v)=>a+v,0)/vals.length;
+  return {mean:m, sd:Math.sqrt(vals.reduce((a,v)=>a+(v-m)**2,0)/vals.length), n:vals.length};
+}
+
 function renderQuad(){
   const points = [];
   const tecByShort = {};
   Object.values(DATA).forEach(d=>{ tecByShort[shortName(d.ticker)] = d; });
   const CAP = 4; // um outlier de P/E esmagaria o resto do gráfico
+  const yrs = rangeSel.value; // o quadrante respeita a MESMA janela dos gráficos
   // eixo de valuation = P/E FORWARD (régua coerente com decisão à frente);
   // trailing só como fallback se o export não tiver a aba Forward
   const srcPe = Object.keys(PEF).length ? PEF : PE;
@@ -502,12 +526,14 @@ function renderQuad(){
     const s = shortName(p.ticker);
     const d = tecByShort[s] || tecByShort[PE2TEC[s]];
     if(!d) return;
-    const zt = d.sd>0 ? (d.last-d.mean)/d.sd : 0;
-    const zv = p.sd>0 ? (p.last-p.mean)/p.sd : 0;
+    const wt = winStats(d.dates, d.ratio, yrs, false) || {mean:d.mean, sd:d.sd, n:d.n};
+    const wp = winStats(p.dates, p.ratio, yrs, true)  || {mean:p.mean, sd:p.sd, n:p.n};
+    const zt = wt.sd>0 ? (d.last-wt.mean)/wt.sd : 0;
+    const zv = wp.sd>0 ? (p.last-wp.mean)/wp.sd : 0;
     const cx = Math.max(-CAP, Math.min(CAP, zv)), cy = Math.max(-CAP, Math.min(CAP, zt));
     const clipped = cx!==zv || cy!==zt;
     points.push({x:cx, y:cy, zx:zv, zy:zt,
-      label:shortName(d.ticker) + (clipped?' →'+(Math.abs(zv)>CAP?zv:zt).toFixed(0)+'σ':'') + (p.n<104?' ⚠':'')});
+      label:shortName(d.ticker) + (clipped?' →'+(Math.abs(zv)>CAP?zv:zt).toFixed(0)+'σ':'') + (wp.n<52?' ⚠':'')});
   });
   if(quadChart) quadChart.destroy();
   quadChart = new Chart(document.getElementById('quadChart'), {
@@ -590,7 +616,7 @@ function setView(v){
   document.querySelectorAll('button.tab').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
   sel.style.display   = v==='chart' ? '' : 'none';
   peSel.style.display = v==='pe' ? '' : 'none';
-  rangeSel.style.display = (v==='chart'||v==='pe') ? '' : 'none';
+  rangeSel.style.display = (v==='chart'||v==='pe'||v==='quad') ? '' : 'none';
   if(v==='chart') renderChart(sel.value);
   if(v==='pe') renderPe(peSel.value);
   if(v==='quad') renderQuad();
@@ -695,7 +721,7 @@ function setPeMode(m){
 }
 document.getElementById('peModeTrail').addEventListener('click', ()=>setPeMode('trail'));
 document.getElementById('peModeFwd').addEventListener('click', ()=>setPeMode('fwd'));
-rangeSel.addEventListener('change', ()=>{ if(currentView==='chart') renderChart(sel.value); if(currentView==='pe') renderPe(peSel.value); });
+rangeSel.addEventListener('change', ()=>{ if(currentView==='chart') renderChart(sel.value); if(currentView==='pe') renderPe(peSel.value); if(currentView==='quad') renderQuad(); });
 
 // no-cache: revalida com o servidor (ETag) a cada visita — os dados mudam
 // diariamente sob a mesma URL e o cache do navegador mostrava dado velho.
