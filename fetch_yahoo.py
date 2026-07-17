@@ -66,6 +66,7 @@ UNIVERSE = [
     ("META US EQUITY", None),
     ("MSFT US EQUITY", None),
     ("MU US EQUITY", None),
+    ("NFLX US EQUITY", None),
     ("NOW US EQUITY", None),
     ("NU US EQUITY", None),
     ("NVDA US EQUITY", None),
