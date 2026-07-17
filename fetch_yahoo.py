@@ -33,6 +33,8 @@ import urllib.request
 # yahoo=None usa a regra padrão: primeira palavra, com "/" -> "-".
 UNIVERSE = [
     # (ticker Bloomberg, símbolo Yahoo ou None para regra padrão)
+    ("000660 KS EQUITY", "000660.KS"),  # SK hynix — KRX, preços em KRW
+    ("005930 KS EQUITY", "005930.KS"),  # Samsung Electronics — KRX, preços em KRW
     ("AAPL US EQUITY", None),
     ("AIRR US EQUITY", None),
     ("AMZN US EQUITY", None),
