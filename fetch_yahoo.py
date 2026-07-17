@@ -72,6 +72,7 @@ UNIVERSE = [
     ("NOW US EQUITY", None),
     ("NU US EQUITY", None),
     ("NVDA US EQUITY", None),
+    ("ORCL US EQUITY", None),
     ("PBR US EQUITY", None),
     ("PICK US EQUITY", None),
     ("PLTR US EQUITY", None),
