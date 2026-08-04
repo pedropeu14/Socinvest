@@ -139,6 +139,49 @@ def fetch_closes(symbol: str) -> tuple[list[str], list[float]]:
     raise RuntimeError(f"{symbol}: {last_err}")
 
 
+def load_previous(path: str = "data.json") -> dict:
+    """data.json do run anterior, ou {} se não existir/estiver corrompido."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            prev = json.load(f)
+        return prev if isinstance(prev, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def merge_series(prev_entry: dict | None, dates: list[str],
+                 ratios: list[float]) -> tuple[list[str], list[float], list[str]]:
+    """União da série nova com a anterior. Ponto novo vence; antigo preenche lacuna.
+
+    Existe porque o Yahoo RETIRA fechamento que já publicou: em 2026-08-04 o
+    fechamento de 2026-08-03 voltou como `close: None` em todos os papéis
+    americanos, embora estivesse disponível na noite anterior. Sem união, o run
+    seguinte republicava a série sem aquele dia — e o dado bom desaparecia do
+    site com o build verde e nenhum alerta.
+
+    Só resgata datas dentro da janela da série nova (>= primeira data dela).
+    Sem esse limite, a janela deslizante de 20 anos faria o arquivo crescer
+    para sempre, ressuscitando o começo da série a cada execução.
+    """
+    if not prev_entry:
+        return dates, ratios, []
+    prev_d = prev_entry.get("dates") or []
+    prev_r = prev_entry.get("ratio") or []
+    if not prev_d or len(prev_d) != len(prev_r) or not dates:
+        return dates, ratios, []
+
+    novos = set(dates)
+    limite = dates[0]
+    resgatados = sorted(d for d in prev_d if d not in novos and d >= limite)
+    if not resgatados:
+        return dates, ratios, []
+
+    merged = {d: r for d, r in zip(prev_d, prev_r) if d >= limite}
+    merged.update(zip(dates, ratios))          # o fresco sempre vence
+    ordenado = sorted(merged)
+    return ordenado, [merged[d] for d in ordenado], resgatados
+
+
 def mm200_ratio(dates: list[str], closes: list[float]) -> tuple[list[str], list[float]]:
     """Ratio close/SMA200 a partir do 200º pregão (soma rolante, O(n))."""
     out_d, out_r = [], []
@@ -153,7 +196,8 @@ def mm200_ratio(dates: list[str], closes: list[float]) -> tuple[list[str], list[
 
 
 def main() -> int:
-    out, failures = {}, []
+    previous = load_previous()
+    out, failures, resgates = {}, [], {}
     for bbg, override in UNIVERSE:
         sym = yahoo_symbol(bbg, override)
         try:
@@ -164,9 +208,14 @@ def main() -> int:
             print(f"FALHA {bbg:18s} ({sym}): {e}", file=sys.stderr)
             time.sleep(PAUSE_S)
             continue
+        key = bbg.split()[0]
+        rd, rr, recuperados = merge_series(previous.get(key), rd, rr)
+        if recuperados:
+            resgates[key] = recuperados
+            print(f"      {bbg:18s} resgatou {len(recuperados)} data(s) do run "
+                  f"anterior: {', '.join(recuperados[-3:])}")
         mean = sum(rr) / len(rr)
         sd = (sum((v - mean) ** 2 for v in rr) / len(rr)) ** 0.5
-        key = bbg.split()[0]
         out[key] = {
             "ticker": bbg,
             "dates": rd,
@@ -180,15 +229,35 @@ def main() -> int:
         print(f"OK    {bbg:18s} ({sym:8s}) {len(rr):>5d} obs  {rd[0]} -> {rd[-1]}")
         time.sleep(PAUSE_S)
 
-    if len(out) < MIN_OK_FRACTION * len(UNIVERSE):
-        print(f"\nABORTADO: só {len(out)}/{len(UNIVERSE)} ativos baixados "
+    baixados = len(out)
+    if baixados < MIN_OK_FRACTION * len(UNIVERSE):
+        print(f"\nABORTADO: só {baixados}/{len(UNIVERSE)} ativos baixados "
               f"(mínimo {MIN_OK_FRACTION:.0%}) — data.json anterior preservado",
               file=sys.stderr)
         return 1
-    with open("data.json", "w") as f:
+
+    # Ativo que falhou hoje mas existia antes é MANTIDO com o dado antigo, não
+    # apagado: sumir do site é pior que aparecer defasado, e o rodapé do
+    # index.html já sinaliza séries mais velhas que a moda. Sem isso, uma falha
+    # pontual do Yahoo num ticker o removia do painel com o build verde.
+    herdados = []
+    for bbg, _ in UNIVERSE:
+        key = bbg.split()[0]
+        if key not in out and key in previous:
+            out[key] = previous[key]
+            herdados.append(f"{key}@{previous[key].get('lastDate', '?')}")
+
+    with open("data.json", "w", encoding="utf-8") as f:
         json.dump(out, f)
-    print(f"\ndata.json gerado: {len(out)}/{len(UNIVERSE)} ativos "
-          f"(falhas: {', '.join(failures) or 'nenhuma'})")
+    print(f"\ndata.json gerado: {baixados}/{len(UNIVERSE)} baixados agora"
+          f" · {len(out)} no arquivo"
+          f" · falhas: {', '.join(failures) or 'nenhuma'}")
+    if resgates:
+        total = sum(len(v) for v in resgates.values())
+        print(f"  resgate de datas que o Yahoo retirou: {total} ponto(s) em "
+              f"{len(resgates)} ativo(s) — {', '.join(sorted(resgates))}")
+    if herdados:
+        print(f"  mantidos com dado anterior (falharam hoje): {', '.join(herdados)}")
     return 0
 
 

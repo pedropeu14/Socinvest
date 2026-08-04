@@ -17,7 +17,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # contents: write porque o data.json passou a ser ACUMULADOR, não saída
+  # descartável: o Yahoo já retirou fechamento que havia publicado, e sem o
+  # arquivo do run anterior no repo não há como recuperar o ponto perdido.
+  contents: write
   pages: write
   id-token: write
 
@@ -49,6 +52,27 @@ jobs:
 
       - name: Estender P/E até hoje (série Bloomberg + preço Yahoo)
         run: python fetch_pe.py
+
+      - name: Persistir data.json (acumulador contra retirada de dado pelo Yahoo)
+        run: |
+          if git diff --quiet -- data.json; then
+            echo "data.json sem mudança — nada a commitar"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data.json
+          git commit -m "data: técnico MM200 do Yahoo ($(date -u +%Y-%m-%d))"
+          # 'data.json' não está no filtro `paths` do trigger de push, então este
+          # commit NÃO reinicia o workflow. O rebase cobre a corrida com um push
+          # manual de p_e.xlsx que tenha entrado durante o build.
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && \
+              git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            echo "tentativa $i falhou; repetindo"
+            sleep 5
+          done
+          echo "::warning::não consegui persistir data.json; o site publica normalmente, mas o próximo run perde o acumulado"
 
       - name: Montar pasta do site
         run: |
