@@ -739,8 +739,28 @@ Promise.all([
   const peKeys = Object.keys(PE).sort((a,b)=>dispName(PE[a].ticker).localeCompare(dispName(PE[b].ticker)));
   peKeys.forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=dispName(PE[k].ticker) + (PE[k].n<104?' ⚠':''); peSel.appendChild(o); });
   if(peKeys.length){ document.getElementById('tabPe').style.display=''; document.getElementById('tabQuad').style.display=''; }
-  const allDates = Object.values(DATA).map(x=>x.lastDate).concat(Object.values(PE).map(x=>x.lastDate));
-  document.getElementById('lastDate').textContent = allDates.sort().pop() || '—';
+  // A data do rodapé é a MODA das últimas observações, não o máximo. O máximo
+  // mentia: ouro (COMEX, quase 24h) e as bolsas asiáticas fecham antes, então
+  // um deles bastava para o rodapé anunciar hoje enquanto todos os papéis
+  // americanos estavam dois dias atrás. Quem lê precisa saber o que a MAIORIA
+  // da tela mostra, e ser avisado quando há série mais velha que isso.
+  const tecDates = Object.values(DATA).map(x=>x.lastDate).filter(Boolean);
+  const allDates = tecDates.concat(Object.values(PE).map(x=>x.lastDate).filter(Boolean));
+  if(!allDates.length){
+    document.getElementById('lastDate').textContent = '—';
+  } else {
+    const freq = {};
+    for(const d of allDates) freq[d] = (freq[d]||0) + 1;
+    // moda; empate resolve pela data mais recente
+    const moda = Object.keys(freq).sort((a,b)=> freq[b]-freq[a] || (a<b?1:-1))[0];
+    const atras = allDates.filter(d=>d < moda);
+    let txt = `${moda} (${freq[moda]} de ${allDates.length} séries)`;
+    if(atras.length){
+      const maisVelha = atras.slice().sort()[0];
+      txt += ` · ⚠ ${atras.length} defasada${atras.length>1?'s':''}, a mais antiga em ${maisVelha}`;
+    }
+    document.getElementById('lastDate').textContent = txt;
+  }
   sel.value = keys.find(k=>DATA[k].ticker.startsWith('SPX')) || keys[0];
   if(peKeys.length) peSel.value = peKeys.find(k=>PE[k].ticker.startsWith('SPX')) || peKeys[0];
   buildTable();
